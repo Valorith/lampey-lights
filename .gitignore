@@ -1,0 +1,19 @@
+# Separate working copy used to publish to ChatGPT Sites
+/studio/
+
+# Private source references and local Blender working files
+/Property alignment samples.zip
+/Front and driveway alignment.png
+/Property model feasibility.md
+/model/Lampey Property.blend
+*.blend[0-9]
+__pycache__/
+
+# Local development and worktrees
+/.claude/
+/.codex/
+/worktrees/
+/.repo-setup/
+.env*
+.dev.vars*
+*.pem
