@@ -2,7 +2,7 @@
 
 ## Claude Code workflow
 
-Start Claude Code from the repository root with `claude --worktree <feature-name>`. Edit and commit on that feature branch. Local tests and previews are optional. Codex takes the commit through release testing, merge, and publishing.
+Start Claude Code from the repository root with `claude --worktree <feature-name>`. Edit and commit on that feature branch. Codex takes the commit through release testing, merge, and publishing.
 
 - Edit the planner in `web/`. It uses React, Three.js, Vinext, and a D1 database.
 - Edit the Blender scene and its generator in `model/`. The app loads `web/public/property.glb`.
@@ -11,20 +11,11 @@ Start Claude Code from the repository root with `claude --worktree <feature-name
 - This repository is public. Use sample patch data in `web/lib/history.json` and keep household worksheets, source photos, credentials, and local databases out of commits.
 - Keep interface copy concise. Cut taglines, helper text, and secondary labels when the layout can convey the information.
 
-### Optional local testing
+### Isolation for local tests and previews
 
-Work from the feature worktree’s `web/` directory with Node.js 22.13 or newer. Run `npm ci` there on first use or when the lockfile changes. Use sample shows and keep dependencies, generated builds, and local database state in that worktree. The Sites checkout, publishing credentials, and hosted database are reserved for Codex.
+If you run tests or a preview, work from the feature worktree’s `web/` directory with sample data and a local D1 database. Keep build output and preview state in that worktree. Reserve the Sites checkout, deployment credentials, and hosted database for Codex.
 
-- For a quick check, run `node --test`.
-- For a full check, run `npm run verify:sites`. It builds the worker, starts it on an automatically assigned loopback port, and tests the planner, model, and saved shows with a disposable local D1 database.
-
-For an interactive preview, build with `npm run build` if you have not already run the full check. Initialize the worktree’s local D1 database by running the command below for each pending migration in order, substituting its filename. A fresh database starts with the file shown.
-
-```sh
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_clear_flatman.sql
-```
-
-Start the preview on a free port, for example `npm start -- --port 4181`, and open the loopback URL it prints. For live editing, use `npm run dev -- --hostname 127.0.0.1 --port 4181`. If the port is occupied, pick another. Stop only the preview you started and clean up your temporary test artifacts when finished.
+The `verify:sites` script creates a disposable database and picks a free loopback port. For an interactive preview, use `127.0.0.1`, an unused port, and the worktree’s own `.wrangler/state`. Stop only processes you started and clean up your own test artifacts. See the [local setup commands](README.md#run-locally).
 
 ### Hand off the commit
 
