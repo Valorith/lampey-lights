@@ -8,6 +8,7 @@ import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import {wirePoints,mounts,mountNames} from "../lib/show";
 import {stageRenderer} from "./stage-renderer";
 import {routeLength,sceneCables,beamDirection,lampOrigin,cablePoints,routedPoints} from "../lib/stage";
+import {shapePath,measure,along,nearestOnPath,simplify,describe,lightCount,wallYaw,dragTools,toolDefaults} from "../lib/draw-tools.js";
 
 const vec=p=>new T.Vector3(...p);
 const views={"Street trees":[[-6.7,3.4,23],[-6.6,2.4,8.5]],Street:[[12.4,6.8,22.1],[0,2,-2.4]],Front:[[0,3.6,24],[0,2.5,-1]],Driveway:[[23,5.1,5.5],[2,1,-4]],"Back stairs":[[7.25,1.48,-8.68],[.94,.98,-9.42]],Pool:[[13.5,10,-29.5],[0,1,-10]],"Rear elevation":[[.7,2.3,-33],[.4,2.05,-9.8]],Overhead:[[0,35,-3],[0,0,-3]]};
@@ -129,7 +130,7 @@ export function createScene(host,events){
  },undefined,()=>events.fail("The property could not load. Reload to retry."));
  function rebuild(){
   depthCache=null;if(cacheDesign!==state.design)blockedRoutes.clear();
-  wires=state.design?sceneCables(state.design):[];
+  wires=state.design?sceneCables(state.design):[];buildSnaps();
   if(state.design)stage.sync(state.design,pickMeshes,!!ctx);
   if(bulbs){scene.remove(bulbs);bulbs.geometry.dispose();mat.dispose()}
   runs=(state.design?.fixtures||[]).filter(f=>f.visible&&f.points.length).map(f=>({f,pts:samples(f,fixturePath(f)),off:state.design.devices.find(d=>d.id===f.device)?.offPorts?.includes(f.port)}));
@@ -178,26 +179,153 @@ export function createScene(host,events){
    for(const c of wires){if(!c.visible||(c.inferred&&c.id!==state.sel))continue;const pts=cablePoints(c,state.design);if(state.labels||c.id===state.sel||c.id===state.hover)tag(pts[Math.floor(pts.length/2)],c.name,c.color,c.id);
     if(c.id===state.sel&&state.mode==="cableEdit")pts.forEach(p=>dot(p,"#ffce80",5))}
   }
-  if(state.draft?.length){line(previewPath,state.routeColor||"#ffe097",[4,3]);state.draft.forEach(p=>dot(p,"#ffe097",4))}
+  if(state.draft?.length){line(previewPath,state.routeColor||state.ghost?.color||"#ffe097",[4,3]);state.draft.forEach(p=>dot(p,"#ffe097",4))}
+  paintTools();
   if(tween||((state.play||stage.animated())&&!document.hidden&&document.hasFocus()))invalidate()
  }
- function pointerDown(e){down=[e.clientX,e.clientY];drag=-1;
-  if(state.mode==="edit"||state.mode==="cableEdit"){const c=state.mode==="cableEdit"&&wires.find(c=>c.id===state.sel);
-   const pts=c?cablePoints(c,state.design):state.design.fixtures.find(f=>f.id===state.sel)?.points.map(p=>mountPoint(state.design.fixtures.find(f=>f.id===state.sel),p));const {x,y}=resolveHit(e);
-   drag=pts?.findIndex((p,i)=>{if(c&&((!i&&c.from)||(i===pts.length-1&&c.to)))return false;const q=screen(vec(p));return Math.hypot(x-q.x,y-q.y)<17})??-1;if(drag>=0){controls.enabled=false;surface.setPointerCapture(e.pointerId)}}}
- function pointerUp(e){const before=down;down=null;if(!before)return;const hit=resolveHit(e);
-  if(drag>=0){const index=drag;drag=-1;controls.enabled=true;if(hit.point)events.move(index,hit.point,hit.normal);return}
-  if(Math.hypot(e.clientX-before[0],e.clientY-before[1])>6||e.button!==0)return;
-  if(["draw","prop","box","relocate","aim","cable","plant"].includes(state.mode)){if(hit.point)events.place(hit.point,hit.normal);return}
+ // ---- Placement tools: hover cursor, snapping, live previews and drag-to-draw.
+ let cursor=null,anchor=null,stroke=null,dragDraw=null,shapePreview=null,feature=null,dragHit=null,inserting=false,snapSets={vertices:[],lines:[]},lastMove=null,moveRaf=0;
+ const placing=()=>["draw","prop","box","plant","aim","cable"].includes(state.mode);
+ const camRight=()=>new T.Vector3().setFromMatrixColumn(cam.matrixWorld,0).toArray();
+ const toolOptions=shift=>({...toolDefaults,...state.toolOpts,square:shift,right:camRight()});
+ function buildSnaps(){
+  const vertices=[],lines=[];
+  for(const [key,pts] of Object.entries(mounts)){const normal=guideNormal(key);lines.push({key,pts,normal});for(const p of pts)vertices.push({p,normal})}
+  for(const f of state.design?.fixtures||[])if(f.shape==="run"&&f.visible&&!f.plant&&!f.mount&&f.points.length>1){lines.push({pts:f.points});f.points.forEach((p,i)=>vertices.push({p,normal:f.normals?.[i]}))}
+  snapSets={vertices,lines};
+ }
+ function editTarget(){const c=state.mode==="cableEdit"&&wires.find(c=>c.id===state.sel),f=!c&&state.design?.fixtures.find(f=>f.id===state.sel);
+  return {c,f,pts:c?cablePoints(c,state.design):f?.points.map(p=>mountPoint(f,p)),insertable:!!c||f?.shape==="run"}}
+ // Pull the cursor onto a nearby corner or edge of the house or of another strand.
+ function snapped(hit,off){
+  if(!hit.point||off||state.toolOpts?.snap===false||!["path","line","rect","circle","arc","swag"].includes(state.tool))return {...hit,kind:null};
+  const p=vec(hit.point);let best=null;
+  const first=state.tool==="path"&&state.draft?.length>2?[{p:state.draft[0],close:true}]:[];
+  for(const c of [...first,...snapSets.vertices]){const q=vec(c.p);if(q.distanceTo(p)>.6)continue;const s=screen(q),d=Math.hypot(s.x-hit.x,s.y-hit.y);
+   if(d<13&&(!best||d<best.d))best={d,point:[...c.p],normal:c.normal||hit.normal,kind:c.close?"close":"vertex"}}
+  if(best)return {...hit,...best};
+  for(const l of snapSets.lines){const near=nearestOnPath(hit.point,l.pts);if(near.distance<.11&&(!best||near.distance<best.d))best={d:near.distance,point:near.point,normal:l.normal||hit.normal,kind:"edge"}}
+  return best?{...hit,...best}:{...hit,kind:null};
+ }
+ // Hold a segment level or plumb when the cursor is nearly there, or always with Shift.
+ function aligned(prev,t,force){
+  if(!prev||!t.point||(t.kind&&!force))return t;
+  const {du,dv,basis}=measure(prev,t.point,t.normal||[0,0,1],camRight()),tolerance=force?Infinity:Math.max(.035,cam.position.distanceTo(vec(t.point))*.006);
+  const shift=(axis,amount)=>t.point.map((v,i)=>v-axis[i]*amount);
+  if(Math.abs(dv)<tolerance&&Math.abs(dv)<=Math.abs(du))return {...t,point:shift(basis.v,dv),kind:"level"};
+  if(Math.abs(du)<tolerance)return {...t,point:shift(basis.u,du),kind:"plumb"};
+  return t;
+ }
+ function aim(e){
+  const raw=resolveHit(e);if(state.mode!=="draw")return {...raw,kind:null,raw:raw.point};
+  let t=snapped(raw,e.altKey);const from=state.tool==="path"?state.draft?.at(-1):state.tool==="line"?(anchor||dragDraw?.start)?.point:null;
+  if(from)t=aligned(from,t,e.shiftKey);return {...t,raw:raw.point};
+ }
+ function refreshPreview(){
+  shapePreview=null;feature=null;if(state.mode!=="draw"||!cursor?.point)return;const tool=state.tool;
+  if(tool==="feature"){for(const l of snapSets.lines){if(!l.key)continue;const near=nearestOnPath(cursor.raw||cursor.point,l.pts);if(near.distance<.75&&(!feature||near.distance<feature.distance))feature={...near,key:l.key}}return}
+  if(tool==="free"){if(stroke)shapePreview={points:stroke.points};return}
+  if(tool==="path"){const last=state.draft?.at(-1);if(last)shapePreview={points:[last,cursor.point],band:true};return}
+  const a=anchor||dragDraw?.start;if(a?.point)shapePreview={points:shapePath(tool,a.point,cursor.point,a.normal||cursor.normal||[0,0,1],toolOptions(cursor.shift)),from:a};
+ }
+ function commitShape(a,b,shift){
+  const tool=state.tool,points=shapePath(tool,a.point,b.point,a.normal||b.normal||[0,0,1],toolOptions(shift));anchor=null;shapePreview=null;
+  if(points.length>1&&routeLength(points)>.05)events.shape({points,normals:tool==="line"?[a.normal||null,b.normal||null]:points.map(()=>a.normal||null)});
+  invalidate();
+ }
+ function hover(e){
+  if(drag>=0){const raw=resolveHit(e);dragHit=raw.point?raw:null;invalidate();return}
+  if(!placing()){if(cursor){cursor=null;invalidate()}return}
+  const t=aim(e);cursor={...t,shift:e.shiftKey};
+  if(dragDraw&&down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])>6)dragDraw.moved=true;
+  if(stroke&&t.point&&stroke.points.length<1500&&vec(stroke.points.at(-1)).distanceTo(vec(t.point))>.03){stroke.points.push(t.point);stroke.normals.push(t.normal||null)}
+  refreshPreview();invalidate();
+ }
+ function paintTools(){
+  const path=(points,color,width=1.6,dash=[])=>{if(points.length<2)return;ink.strokeStyle=color;ink.lineWidth=width;ink.lineJoin="round";ink.setLineDash(dash);ink.beginPath();points.forEach((p,i)=>{const v=screen(vec(p));if(i)ink.lineTo(v.x,v.y);else ink.moveTo(v.x,v.y)});ink.stroke();ink.setLineDash([])};
+  const disc=(p,color,r)=>{const v=screen(vec(p));ink.beginPath();ink.fillStyle=color;ink.arc(v.x,v.y,r,0,Math.PI*2);ink.fill()};
+  const ring=(p,r,color,width=1.5)=>{const v=screen(vec(p));ink.beginPath();ink.strokeStyle=color;ink.lineWidth=width;ink.arc(v.x,v.y,r,0,Math.PI*2);ink.stroke()};
+  const note=(x,y,text)=>{ink.font="600 12px Figtree, system-ui, sans-serif";const tw=ink.measureText(text).width+16,left=Math.max(6,Math.min(w-tw-6,x+16)),top=Math.max(6,Math.min(h-28,y+18));
+   ink.fillStyle="#0a101df2";ink.beginPath();ink.roundRect(left,top,tw,22,6);ink.fill();ink.strokeStyle="#ffffff38";ink.lineWidth=1;ink.stroke();ink.fillStyle="#f5f0e6";ink.fillText(text,left+8,top+15)};
+  const ghost=state.ghost||{},color=ghost.color||state.routeColor||"#ffe097",feet=m=>(m/.3048).toFixed(1)+" ft";
+  const glow=v=>{ink.globalAlpha=.28;ink.beginPath();ink.arc(v.x,v.y,5,0,Math.PI*2);ink.fill();ink.globalAlpha=1;ink.beginPath();ink.arc(v.x,v.y,2,0,Math.PI*2);ink.fill()};
+  const lamps=(points,count)=>{ink.fillStyle=color;for(const q of along(points,Math.min(240,Math.max(2,count||2))))glow(screen(vec(q)))};
+  const lampsFor=points=>ghost.spacing?lightCount(routeLength(points),ghost.spacing):ghost.count;
+  if(state.mode==="edit"||state.mode==="cableEdit"){const {pts,insertable}=editTarget();if(pts){
+   if(insertable&&pts.length<160&&drag<0)for(let i=1;i<pts.length;i++)ring(pts[i].map((v,k)=>(v+pts[i-1][k])/2),3.5,"#ffce80");
+   if(drag>=0&&dragHit){path([inserting?pts[drag]:pts[drag-1],dragHit.point,pts[drag+1]].filter(Boolean),"#ffffff",1.6,[5,4]);disc(dragHit.point,"#ffffff",5)}}}
+  if(!placing()||!cursor?.point)return;
+  const p=cursor.point,s=screen(vec(p));
+  if(state.mode==="draw"){
+   if(state.tool==="feature"){
+    if(feature){const pts=mounts[feature.key];path(pts,"#000000aa",6);path(pts,color,2.5);lamps(pts,lampsFor(pts));note(s.x,s.y,(mountNames[feature.key]||"House feature")+" · "+feet(routeLength(pts)))}
+    else note(s.x,s.y,"Move over a roofline, window or rail");
+   }else{
+    const shape=shapePreview?.points||[],from=shapePreview?.from,trail=state.tool==="path"&&state.draft?.length?[...(previewPath.length?previewPath:state.draft),p]:shape;
+    if(shape.length>1){path(shape,"#000000aa",4.5);path(shape,color,2,shapePreview.band?[6,4]:[])}
+    if(trail.length>1)lamps(trail,lampsFor(trail));
+    if(from?.point)disc(from.point,"#ffffff",4);
+    if(cursor.kind==="vertex"||cursor.kind==="edge"){ink.strokeStyle="#ffc46b";ink.lineWidth=2;ink.strokeRect(s.x-6,s.y-6,12,12)}
+    if(cursor.kind==="close")ring(p,9,"#74e3ab",2.5);
+    let text="";
+    if(state.tool==="path"&&state.draft?.length){const last=state.draft.at(-1);text=feet(vec(last).distanceTo(vec(p)))+(state.draft.length>1?" · "+feet(routeLength(trail))+" total":"")}
+    else if(shape.length>1)text=describe(state.tool,shape,from?.point,p,from?.normal||cursor.normal||[0,0,1],camRight());
+    if(text){const n=lampsFor(trail);if(n)text+=" · "+n+" lights";const hint={level:"level",plumb:"plumb",vertex:"corner",edge:"edge",close:"close loop"}[cursor.kind];if(hint)text+=" · "+hint;note(s.x,s.y,text)}
+   }
+  }else if(state.mode==="prop"&&ghost.shape&&ghost.shape!=="flood"){
+   const yaw=ghost.autoYaw?wallYaw(cursor.normal)??(ghost.yaw||0):ghost.yaw||0,row={...ghost,points:[p],normal:cursor.normal,yaw,count:Math.min(ghost.count||1,160)};
+   ink.fillStyle=color;for(const q of samples(row,wirePoints(row)))glow(screen(q));
+   note(s.x,s.y,feet(ghost.size)+" tall");
+  }else if(state.mode==="plant"&&ghost.width){
+   const r=ghost.width/2,circle=Array.from({length:33},(_,i)=>[p[0]+Math.cos(i*Math.PI/16)*r,p[1]+.03,p[2]+Math.sin(i*Math.PI/16)*r]);
+   path(circle,"#8fd69b",1.8);path([p,[p[0],p[1]+ghost.height,p[2]]],"#8fd69b",1.8,[4,4]);note(s.x,s.y,feet(ghost.height)+" tall");
+  }
+  ring(p,7,"#ffffffcc");disc(p,color,2.5);
+ }
+ function pointerDown(e){down=[e.clientX,e.clientY];drag=-1;inserting=false;dragHit=null;
+  if(state.mode==="edit"||state.mode==="cableEdit"){const {c,pts,insertable}=editTarget(),{x,y}=resolveHit(e);
+   const over=(p,r)=>{const q=screen(vec(p));return Math.hypot(x-q.x,y-q.y)<r};
+   drag=pts?.findIndex((p,i)=>!(c&&((!i&&c.from)||(i===pts.length-1&&c.to)))&&over(p,17))??-1;
+   if(drag<0&&insertable&&pts&&pts.length<160){drag=pts.findIndex((p,i)=>i<pts.length-1&&over(p.map((v,k)=>(v+pts[i+1][k])/2),11));inserting=drag>=0}
+   if(drag>=0){controls.enabled=false;surface.setPointerCapture(e.pointerId)}return}
+  if(state.mode==="draw"&&dragTools.includes(state.tool)&&e.button===0&&!anchor){const start=aim(e);
+   if(start.point){dragDraw={start,moved:false};controls.enabled=false;surface.setPointerCapture(e.pointerId);if(state.tool==="free")stroke={points:[start.point],normals:[start.normal||null]}}}
+ }
+ function pointerUp(e){const before=down;down=null;if(!before)return;const hit=resolveHit(e),moved=Math.hypot(e.clientX-before[0],e.clientY-before[1]);
+  if(drag>=0){const index=drag,insert=inserting;drag=-1;inserting=false;dragHit=null;controls.enabled=true;
+   if(hit.point&&(moved>3||insert)){if(insert)events.insert(index+1,hit.point,hit.normal);else events.move(index,hit.point,hit.normal)}invalidate();return}
+  if(dragDraw){const start=dragDraw.start;dragDraw=null;controls.enabled=true;
+   if(state.tool==="free"){const s=stroke,end=aim(e);stroke=null;shapePreview=null;invalidate();if(s&&end.point){s.points.push(end.point);s.normals.push(end.normal||null)}if(s&&s.points.length>2&&routeLength(s.points)>.1){const keep=simplify(s.points);events.shape({points:keep.map(i=>s.points[i]),normals:keep.map(i=>s.normals[i])})}return}
+   if(moved>6){const end=aim(e);if(end.point)commitShape(start,end,e.shiftKey);else{shapePreview=null;invalidate()}return}}
+  if(moved>6||e.button!==0)return;
+  if(state.mode==="draw"){const t=aim(e),tool=state.tool;
+   if(tool==="feature"){if(feature)events.shape({mount:feature.key,points:mounts[feature.key]});return}
+   if(!t.point||tool==="free")return;
+   if(tool==="path"){events.place(t.point,t.normal,{close:t.kind==="close"});return}
+   if(anchor)commitShape(anchor,t,e.shiftKey);else{anchor=t;refreshPreview();invalidate()}return}
+  if(["prop","box","relocate","aim","cable","plant"].includes(state.mode)){if(hit.point)events.place(hit.point,hit.normal,{shift:e.shiftKey});return}
   if(state.mode==="edit"||state.mode==="cableEdit")return;
   const label=labels.find(l=>Math.abs(l.x-hit.x)<l.w/2&&hit.y>=l.y&&hit.y<=l.y+21);
   const point=projection.filter(p=>Math.hypot(p.x-hit.x,p.y-hit.y)<10).sort((a,b)=>a.z-b.z)[0];
   const object=stage.pick(ray);
   if(label)events.pick(label.id);else if(point&&object&&state.design?.plants?.some(p=>p.id===object.id))events.pick(point.id);else if(object&&object.distance<=hit.distance+.08)events.pick(object.id);else if(point)events.pick(point.id)
  }
- surface.addEventListener("pointerdown",pointerDown,true);surface.addEventListener("pointerup",pointerUp);const cancel=()=>{down=null;drag=-1;controls.enabled=true};surface.addEventListener("pointercancel",cancel);
+ function doubleClick(e){
+  if(state.mode==="draw"&&state.tool==="path"){events.finish();return}
+  if(state.mode!=="edit"&&state.mode!=="cableEdit")return;
+  const {c,pts}=editTarget(),{x,y}=resolveHit(e);if(!pts||pts.length<3)return;
+  const index=pts.findIndex((p,i)=>{if(c&&((!i&&c.from)||(i===pts.length-1&&c.to)))return false;const q=screen(vec(p));return Math.hypot(x-q.x,y-q.y)<17});
+  if(index>=0)events.removePoint(index);
+ }
+ const pointerMove=e=>{lastMove=e;if(!moveRaf)moveRaf=requestAnimationFrame(()=>{moveRaf=0;if(!disposed)hover(lastMove)})};
+ const pointerLeave=()=>{if(cursor&&!dragDraw){cursor=null;shapePreview=null;feature=null;invalidate()}};
+ const cancel=()=>{down=null;drag=-1;dragDraw=null;stroke=null;dragHit=null;controls.enabled=true;invalidate()};
+ surface.addEventListener("pointerdown",pointerDown,true);surface.addEventListener("pointerup",pointerUp);surface.addEventListener("pointermove",pointerMove);surface.addEventListener("pointerleave",pointerLeave);surface.addEventListener("dblclick",doubleClick);surface.addEventListener("pointercancel",cancel);
  const visibility=()=>{if(!document.hidden)invalidate()};document.addEventListener("visibilitychange",visibility);window.addEventListener("focus",visibility);
- return {canRoute(row,group){if(!fitted||!state.design)return true;if(group==="fixtures"&&row.shape==="run"&&!row.plant&&row.points.length>1){const n=guideNormal(row.mount);return !fitted.route(row.points,{normals:n?row.points.map(()=>n):row.normals,window:true}).obstructed}if(group==="cables"&&row.attachment!=="free")return !fitted.route(terminals(row,state.design).raw,{radius:row.width/2,normals:row.normals}).obstructed;return true},length(id){const p=cache.get("c/"+id)||cache.get("f/"+id);return p?routeLength(p):null},update(s){const design=placeBodies(s.design),refresh=design!==state.design||s.night!==state.night;const preview=s.draft!==state.draft||refresh;state={...s,design};if(preview){const pts=s.draft||[];previewPath=pts.length>=2&&fitted&&s.routeStyle!=="hanging"?fitted.route(pts,{radius:s.mode==="cable"?.02:0,window:s.mode==="draw"}):routedPoints(pts,s.routeStyle||"corners",s.routeSag)}if(refresh)rebuild();else invalidate()},preset,focus,zoom(f){const offset=cam.position.clone().sub(controls.target);offset.setLength(Math.min(controls.maxDistance,Math.max(controls.minDistance,offset.length()*f)));fly(controls.target.clone().add(offset),controls.target.clone(),220)},
- dispose(){disposed=true;cancelAnimationFrame(raf);observer.disconnect();controls.dispose();stage.dispose();document.removeEventListener("visibilitychange",visibility);window.removeEventListener("focus",visibility);scene.traverse(o=>{o.geometry?.dispose();for(const m of [].concat(o.material||[]))m.dispose()});gl?.dispose();host.replaceChildren()}}
+ return {canRoute(row,group){if(!fitted||!state.design)return true;if(group==="fixtures"&&row.shape==="run"&&!row.plant&&row.points.length>1){const n=guideNormal(row.mount);return !fitted.route(row.points,{normals:n?row.points.map(()=>n):row.normals,window:true}).obstructed}if(group==="cables"&&row.attachment!=="free")return !fitted.route(terminals(row,state.design).raw,{radius:row.width/2,normals:row.normals}).obstructed;return true},length(id){const p=cache.get("c/"+id)||cache.get("f/"+id);return p?routeLength(p):null},update(s){const design=placeBodies(s.design),refresh=design!==state.design||s.night!==state.night;const preview=s.draft!==state.draft||refresh;
+  // A new tool starts clean; while a drag tool is active the right button orbits instead of panning.
+  if(s.mode!==state.mode||s.tool!==state.tool){anchor=null;stroke=null;dragDraw=null;shapePreview=null;feature=null;controls.enabled=true;controls.mouseButtons.RIGHT=s.mode==="draw"&&dragTools.includes(s.tool)?T.MOUSE.ROTATE:T.MOUSE.PAN}
+  state={...s,design};refreshPreview();if(preview){const pts=s.draft||[];previewPath=pts.length>=2&&fitted&&s.routeStyle!=="hanging"?fitted.route(pts,{radius:s.mode==="cable"?.02:0,window:s.mode==="draw"}):routedPoints(pts,s.routeStyle||"corners",s.routeSag)}if(refresh)rebuild();else invalidate()},preset,focus,zoom(f){const offset=cam.position.clone().sub(controls.target);offset.setLength(Math.min(controls.maxDistance,Math.max(controls.minDistance,offset.length()*f)));fly(controls.target.clone().add(offset),controls.target.clone(),220)},
+ dispose(){disposed=true;cancelAnimationFrame(raf);cancelAnimationFrame(moveRaf);observer.disconnect();controls.dispose();stage.dispose();document.removeEventListener("visibilitychange",visibility);window.removeEventListener("focus",visibility);scene.traverse(o=>{o.geometry?.dispose();for(const m of [].concat(o.material||[]))m.dispose()});gl?.dispose();host.replaceChildren()}}
 }
 

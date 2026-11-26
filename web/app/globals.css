@@ -371,6 +371,8 @@ dialog.palette{width:min(600px,94vw);margin-top:12dvh;max-height:70dvh;overflow:
 /* ---------- Toasts ---------- */
 .toaster{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:50;pointer-events:none;max-width:min(400px,calc(100vw - 32px))}
 .appShell[data-tab=Layout] .toaster{bottom:78px}
+.appShell:has(.drawBar) .toaster{bottom:132px}
+.viewport:not([data-mode=select]) .hint{display:none}
 .toast{pointer-events:auto;display:flex;align-items:center;gap:10px;padding:9px 8px 9px 13px;border-radius:12px;border:1px solid var(--line-2);background:#0d1524f5;backdrop-filter:blur(14px);box-shadow:var(--shadow);font-size:13px;animation:toast .32s var(--ease) both}
 .toast>span{flex:1;line-height:1.35}
 .toast>.ico{color:var(--frost)}

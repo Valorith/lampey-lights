@@ -70,11 +70,13 @@ export function wirePoints(f){
  const [x,y,z]=f.points[0], h=f.size, pts=[];
  if(f.shape==="flood")return [[x,y+.12,z],[x,y+.16,z]];
  const steps=f.shape==="star"?10:96;
+ // Flat props turn about their anchor so they can sit against any wall.
+ const yaw=(f.yaw||0)*Math.PI/180,turn=(dx,height)=>[x+dx*Math.cos(yaw),height,z-dx*Math.sin(yaw)];
  for(let i=0;i<=steps;i++){
   const t=i/steps, a=t*Math.PI*2;
   if(f.shape==="tree")pts.push([x+Math.cos(a*6)*h*.31*(1-t),y+.05+h*t,z+Math.sin(a*6)*h*.31*(1-t)]);
-  else if(f.shape==="arch")pts.push([x-Math.cos(Math.PI*t)*h,y+.05+Math.sin(Math.PI*t)*h,z]);
-  else {const r=h*.5*(f.shape==="star"&&i%2?.45:1);pts.push([x+Math.sin(a)*r,y+h*.5+Math.cos(a)*r,z]);}
+  else if(f.shape==="arch")pts.push(turn(-Math.cos(Math.PI*t)*h,y+.05+Math.sin(Math.PI*t)*h));
+  else {const r=h*.5*(f.shape==="star"&&i%2?.45:1);pts.push(turn(Math.sin(a)*r,y+h*.5+Math.cos(a)*r));}
  }return pts;
 }
 export function length(f){const pts=wirePoints(f);return pts.slice(1).reduce((a,p,i)=>a+Math.hypot(...p.map((v,k)=>v-pts[i][k])),0)}
