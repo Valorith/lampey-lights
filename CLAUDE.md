@@ -17,11 +17,12 @@ Use Node.js 22.13 or newer. From the repository root, run the following in a fre
 ```sh
 cd web
 npm ci
-node --test
-npm run build
+npm run verify:sites
 ```
 
-For a fresh local database, initialize D1 once after the build. For an existing database, apply only pending migrations from `web/drizzle/`. Run this command from `web/`.
+`verify:sites` runs the unit tests, checks window mounts against the GLB, builds the production worker, and boots it on loopback with a disposable D1 database. It checks the packaged migrations and hosting manifest, fetches the planner and model, and reads and writes both a legacy and a new show. Use `node --test` for a quick iteration.
+
+For a separate interactive preview, initialize a fresh local D1 database once after the build. For an existing database, apply only pending migrations from `web/drizzle/`. Run this command from `web/`.
 
 ```sh
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_clear_flatman.sql
@@ -39,16 +40,25 @@ node --test
 
 ## Merge, clean up, and hand off to Codex
 
-1. Test and commit the finished work in the feature worktree.
+1. Run `npm run verify:sites` from `web/` and commit the finished work in the feature worktree. Add new D1 migrations for schema changes so installations with saved shows can upgrade.
 2. From the checkout that owns `main`, bring it up to date with `git pull --ff-only origin main`, merge the feature branch, and push with `git push origin main`. A merged GitHub pull request also completes this step.
 3. Record the full SHA of the commit that landed on `main`. For a pull request, use its merge or squash commit. Fetch `origin` and verify that `git merge-base --is-ancestor <release-sha> origin/main` succeeds before cleanup.
 4. Once the worktree is clean and its changes are on GitHub, remove the feature worktree from another checkout, then delete its local branch. If the feature branch was also pushed to GitHub, delete that remote branch too.
 
 Give the maintainer a handoff they can paste into Codex with these details.
 
-- The GitHub commit link or full release SHA on `main`.
+- The GitHub commit link or full release SHA on `main`, and the result of its **Sites compatibility** check.
 - What changed and how to verify it in the planner.
 - Which tests, build, and browser checks passed, and anything still unverified.
 - Any D1 migrations, changes to saved-design compatibility, or updated Blender and GLB assets that affect release.
 
-When the maintainer asks to publish, Codex uses that commit on `main` to apply the relevant `web/` changes at the root of the Sites checkout. The release uses the existing Site’s hosting identity and installation-specific patch data. Publishing to ChatGPT Sites is a separate step from pushing to GitHub.
+## Publish from the Sites checkout
+
+When the maintainer asks to publish, Codex follows these steps.
+
+1. Confirm the **Sites compatibility** check passed for the requested SHA. A later commit on `main` is a separate release candidate.
+2. Sync the existing Sites checkout and record the current live version. Apply the reviewed `web/` changes since the last integrated GitHub revision at the checkout root. Preserve the live project ID, database binding, historical patch data, and other Sites-only changes. Review any overlap before continuing.
+3. In that checkout, set `EXPECTED_SITES_PROJECT_ID` to the existing Site ID obtained from Sites. Run `npm run verify:sites` against the integrated source. A failing check stops publication. Package the verified build with the existing Sites workflow.
+4. After publishing, confirm deployment succeeded and open the live planner to verify the changed workflow using read-only checks where possible. Record the GitHub SHA and Sites version in the handoff. The prior version is the code rollback target if it remains compatible with applied database migrations.
+
+Pushing to GitHub runs checks. Publishing remains a separate maintainer-requested operation.

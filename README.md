@@ -34,4 +34,6 @@ Edit [the Blender scene](model/Lampey%20Lights.blend) or regenerate it with [bui
 
 ## GitHub and ChatGPT Sites
 
-This repository is the development source. The existing ChatGPT Sites app uses a separate publishing checkout. To release a reviewed change, apply its app diff from `web/` to the Sites checkout, preserve the site's hosting configuration and installation-specific patch data, and publish through Sites. A GitHub push on its own does not deploy a release.
+Run `npm run verify:sites` from `web/` for the release check. GitHub runs it on pull requests and pushes to `main` using the managed Linux build profile. The check builds the worker and exercises it against a temporary local database.
+
+The existing ChatGPT Sites app uses a separate publishing checkout. Codex applies the reviewed app changes there, preserves the site's hosting configuration and installation-specific patch data, and runs the check again before publishing. See the [release handoff](CLAUDE.md#publish-from-the-sites-checkout).
