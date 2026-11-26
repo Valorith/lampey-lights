@@ -37,13 +37,18 @@ node scripts/extract-window-frames.mjs --check
 node --test
 ```
 
-## Hand changes to Codex for publishing
+## Merge, clean up, and hand off to Codex
 
-Commit the finished changes on the feature branch. Give the maintainer a handoff they can paste into Codex with the following details.
+1. Test and commit the finished work in the feature worktree.
+2. From the checkout that owns `main`, bring it up to date with `git pull --ff-only origin main`, merge the feature branch, and push with `git push origin main`. A merged GitHub pull request also completes this step.
+3. Record the full SHA of the commit that landed on `main`. For a pull request, use its merge or squash commit. Fetch `origin` and verify that `git merge-base --is-ancestor <release-sha> origin/main` succeeds before cleanup.
+4. Once the worktree is clean and its changes are on GitHub, remove the feature worktree from another checkout, then delete its local branch. If the feature branch was also pushed to GitHub, delete that remote branch too.
 
-- The branch name and full commit SHA from `git branch --show-current` and `git rev-parse HEAD`. A local branch is enough on the same machine. For a handoff from another machine, provide a pushed branch or pull request URL.
+Give the maintainer a handoff they can paste into Codex with these details.
+
+- The GitHub commit link or full release SHA on `main`.
 - What changed and how to verify it in the planner.
 - Which tests, build, and browser checks passed, and anything still unverified.
 - Any D1 migrations, changes to saved-design compatibility, or updated Blender and GLB assets that affect release.
 
-Codex reviews the commit, integrates the approved changes, and applies the relevant `web/` diff at the root of the Sites checkout. The release uses the existing Site’s hosting identity and installation-specific patch data. A GitHub push or merge alone does not publish the planner.
+When the maintainer asks to publish, Codex uses that commit on `main` to apply the relevant `web/` changes at the root of the Sites checkout. The release uses the existing Site’s hosting identity and installation-specific patch data. Publishing to ChatGPT Sites is a separate step from pushing to GitHub.
