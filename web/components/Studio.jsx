@@ -101,7 +101,7 @@ export default function Studio(){
  function drawStrand(){begin({...defaultFixture(),name:"Custom strand",zone:"Front yard",mount:""},"draw")}
  function toggleFull(){if(document.fullscreenElement)document.exitFullscreen?.();else document.documentElement.requestFullscreen?.().catch(()=>{})}
  function openPanel(){if(window.matchMedia("(max-width:720px)").matches)setMobile(true);else setPanel(true)}
- function findInScene(){openPanel();setTimeout(()=>searchBox.current?.focus(),30)}
+ function findInScene(){openPanel();setTimeout(()=>searchBox.current?.focus(),60)}
  const undo=()=>{if(store.canUndo){store.undo();settle()}},redo=()=>{if(store.canRedo)store.redo()};
  const exportProject=()=>{saveFile(design.name+".json",JSON.stringify(design,null,2),"application/json");toast("Exported "+design.name,{kind:"success"})};
 
