@@ -1,0 +1,6 @@
+The fonts in this directory are Latin subsets distributed by Fontsource and are
+licensed under the SIL Open Font License, Version 1.1 (https://openfontlicense.org).
+
+fraunces.woff2        Copyright 2020 The Fraunces Project Authors (github.com/undercasetype/Fraunces)
+figtree.woff2         Copyright 2022 The Figtree Project Authors (github.com/erikdkennedy/figtree)
+jetbrains-mono.woff2  Copyright 2020 The JetBrains Mono Project Authors (github.com/JetBrains/JetBrainsMono)

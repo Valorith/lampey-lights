@@ -1,9 +1,11 @@
 import {useEffect,useRef,useState} from "react";
 import {beamDefaults} from "../lib/stage";
+import {I} from "./ui-kit";
 import {fixtures,shapes,hardware,protocols,mounts,mountNames,palette,effects,isPixel,isSerial} from "../lib/show";
-export function Modal({title,close,children}){
- const ref=useRef(null);useEffect(()=>{const dlg=ref.current;dlg.showModal();return()=>dlg.close()},[]);
- return <dialog ref={ref} onCancel={e=>{e.preventDefault();close()}} onClick={e=>{if(e.target===ref.current)close()}}><section className="modal"><header><h2>{title}</h2><button className="icon" aria-label="Close dialog" onClick={close}>×</button></header>{children}</section></dialog>
+export function Modal({title,close,children,className}){
+ // showModal focuses the first control, which is the close button; move focus to the field or action the dialog is about.
+ const ref=useRef(null);useEffect(()=>{const dlg=ref.current;dlg.showModal();const target=dlg.querySelector("[data-focus]")||(window.matchMedia("(hover:hover)").matches&&dlg.querySelector(".modal input:not([type=color]):not([type=number])"));target?.focus();return()=>dlg.close()},[]);
+ return <dialog ref={ref} className={className} aria-label={title} onCancel={e=>{e.preventDefault();close()}} onClick={e=>{if(e.target===ref.current)close()}}><section className="modal"><header><h2>{title}</h2><button type="button" className="tool" aria-label="Close dialog" onClick={close}><I n="x"/></button></header>{children}</section></dialog>
 }
 export function Field({label,children,wide}){return <label className={wide?"field wide":"field"}><span>{label}</span>{children}</label>}
 export const options=obj=>Object.entries(obj).map(([v,n])=><option key={v} value={v}>{typeof n==="string"?n:n.name}</option>);
@@ -42,7 +44,7 @@ export function FixtureForm({initial,design,commit,close,remove,existing}){
  {bus&&!isSerial(bus)&&<>{number("Start universe","universe",63999)}{number("Start channel","slot",512)}</>}
  {placement==="mount"&&field("Installation","state",Object.fromEntries(["Planned","Installed","Needs check","Spare"].map(x=>[x,x])))}
  {field("Previous patch","reference")}{field("Setup notes","notes",null,{wide:true,input:{maxLength:800}})}</div>
- <footer>{existing&&<button type="button" className="danger" onClick={remove}>Remove</button>}<button type="button" onClick={close}>Cancel</button><button className="primary">{placement==="pick"?"Continue on model":existing?"Save fixture":"Add fixture"}</button></footer></form></Modal>
+ <footer>{existing&&<button type="button" className="danger" onClick={remove}><I n="trash" size={15}/>Remove</button>}<button type="button" onClick={close}>Cancel</button><button className="primary">{placement==="pick"?"Continue on model":existing?"Save fixture":"Add fixture"}</button></footer></form></Modal>
 }
 export function NetworkForm({initial,design,commit,remove,close,existing}){
  const {v,set,update,field,number}=useFields(initial);const serial=isSerial(v);
@@ -51,7 +53,7 @@ export function NetworkForm({initial,design,commit,remove,close,existing}){
  {field("Source / adapter","source",Object.fromEntries(["USB485-HS","USB485","USB485B","Director","Ethernet interface","USB DMX","Bridge output"].map(x=>[x,x])))}
  {serial&&<Field label="Link speed"><select value={v.speed} onChange={e=>update("speed",Number(e.target.value))}>{(v.protocol==="pixlink"?[4250000,8500000,17000000]:[19200,57600,115200,500000,1000000]).map(s=><option key={s} value={s}>{s/1000} kbps</option>)}</select></Field>}
  {v.protocol==="sacn"?<Field label="Channels per universe"><select value={v.slots} onChange={e=>update("slots",Number(e.target.value))}><option>510</option><option>512</option></select></Field>:field("Upstream bridge","bridge",deviceOptions(design.devices.filter(d=>["aurora","bridge"].includes(d.model)),"Direct connection"))}
- {v.bridge&&number("Bridge output","output",6)}{field("Setup notes","notes",null,{wide:true})}</div><footer>{existing&&<button type="button" className="danger" onClick={remove}>Remove</button>}<button type="button" onClick={close}>Cancel</button><button className="primary">Save network</button></footer></form></Modal>
+ {v.bridge&&number("Bridge output","output",6)}{field("Setup notes","notes",null,{wide:true})}</div><footer>{existing&&<button type="button" className="danger" onClick={remove}><I n="trash" size={15}/>Remove</button>}<button type="button" onClick={close}>Cancel</button><button className="primary">Save network</button></footer></form></Modal>
 }
 export function DeviceForm({initial,design,commit,close,existing,remove}){
  const {v,update,field,number}=useFields(initial);const n=design.networks.find(x=>x.id===v.net),m=hardware[v.model];
@@ -62,6 +64,6 @@ export function DeviceForm({initial,design,commit,close,existing,remove}){
  {v.model==="generic"&&<Field label="Physical output count"><input type="number" min="1" max="128" required value={v.portCount??16} onChange={e=>update("portCount",Number(e.target.value))}/></Field>}{m.kind==="pixel"&&number("Configured pixels / port","pixelLimit",2048)}
  {v.model.startsWith("pixie")&&v.pixelLimit>170&&<Field label="Double Unit ID split"><select value={v.splitEvenly?"even":"carry"} onChange={e=>update("splitEvenly",e.target.value==="even")}><option value="carry">First 170, then carry over</option><option value="even">Split evenly</option></select></Field>}{n?.protocol==="sacn"&&field("IP address","ip",null,{input:{placeholder:"Optional"}})}{n?.bridge&&number("First mapped universe","universe",63999)}
  {["tx","rx"].includes(v.model)&&number("RF channel","rf",31,0)}{v.model==="edge"&&number("Core long-range output","branch",2)}
- {field("Setup notes","notes",null,{wide:true})}</div><footer>{existing&&<button type="button" className="danger" onClick={remove}>Remove</button>}<button type="button" onClick={close}>Cancel</button><button className="primary">Save box</button></footer></form></Modal>
+ {field("Setup notes","notes",null,{wide:true})}</div><footer>{existing&&<button type="button" className="danger" onClick={remove}><I n="trash" size={15}/>Remove</button>}<button type="button" onClick={close}>Cancel</button><button className="primary">Save box</button></footer></form></Modal>
 }
 

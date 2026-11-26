@@ -1,4 +1,71 @@
-.kitTabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:#101915;border:1px solid #314137;border-radius:10px;padding:4px;margin:16px 0 12px}.kitTabs button{border:0;background:transparent;color:#aac1b2}.kitTabs button[aria-pressed=true]{background:#344a3c;color:#d1f5d7}.kitFilter{width:100%;margin-bottom:12px}.kitGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;max-height:52dvh;overflow:auto;padding:1px}.kitGrid button{justify-content:start;text-align:left;min-height:55px;background:#1c2a24;border-color:#33463b}.kitGrid button:hover{border-color:#89b59b;background:#293b30}.kitGrid i,.ctlMark{display:grid;place-items:center;background:#121f19;border-radius:7px;min-width:33px;height:33px;font-style:normal}.kitGrid svg{display:block}
-.vertexHead,.vertex{display:grid;align-items:center;grid-template-columns:18px repeat(3,minmax(0,1fr)) 26px 26px;gap:4px;margin:5px 0}.vertices{padding:13px 0;color:#c2d9c9}.vertices summary{margin-bottom:10px}.vertices input{width:100%;padding:5px;font-size:12px}.vertices button{padding:0}.vertexHead{font-size:11px}.lift{display:flex;align-items:center;gap:5px;font-size:12px;color:#d5e6d7}.lift input{width:60px;padding:4px}.boxPopover{z-index:4;position:absolute;left:12px;top:64px;width:min(300px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;padding:13px;background:linear-gradient(130deg,#22382ef7,#14231dfb);border:1px solid #6d937d;border-radius:13px;box-shadow:0 12px 35px #0006,0 0 0 1px #15271f;scrollbar-width:thin}.ctlTitle,.ctlPatch header,.ctlRow,.boxPopover footer,.controllerFull footer,.ctlAssign{display:flex;align-items:center;gap:8px}.ctlTitle strong,.ctlTitle small,.ctlRow span small{display:block}.ctlTitle small{font-size:11px;margin-top:3px}.ctlTitle div{min-width:0;overflow:hidden;overflow-wrap:anywhere}.ctlTitle button{margin-left:auto;border:0;background:none;font-size:18px}.ctlMark{color:#9cecc3;font-size:23px;flex:none}.ctlFields{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:11px 0}.ctlFields .field{min-width:0}.ctlFields select,.ctlFields input{width:100%;font-size:12px;padding:5px}.ctlCapacity{align-self:end;border:1px solid #3b5445;background:#192920;border-radius:6px;padding:6px 8px;font-size:12px;color:#aec5b5}.ctlCapacity b{color:#d6f0d9}.ctlPatch header{justify-content:space-between;color:#deeadf;padding:8px 0;font-size:12px}.ctlPatch{border-top:1px solid #35493b;max-height:180px;overflow:auto;scrollbar-width:thin}.ctlRow{border-top:1px solid #314237;min-height:32px;font-size:12px}.ctlRow>b{color:#e5c397;white-space:nowrap;font-size:10px}.ctlRow>span{flex:1;min-width:0;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.ctlRow button{font-size:11px;min-height:25px;padding:2px 6px}.ctlRow .powerToggle{background:transparent;border:0;color:#9aa09c;font-size:15px;padding:0 2px}.ctlRow .powerToggle[aria-pressed=true]{color:#a7edb5}.ctlPatch p,.ctlIssue{font-size:12px;color:#a8baac;margin:5px 0 10px}.boxPopover footer,.controllerFull footer{margin-top:9px;justify-content:space-between}.ctlAssign{margin-top:16px;align-items:end}.ctlAssign .field:first-child{flex:1}.ctlAssign .field:nth-child(2){width:80px}.controllerFull{padding:4px 0}.controllerFull .ctlFields{grid-template-columns:repeat(3,minmax(0,1fr))}.controllerFull .ctlFields input,.controllerFull .ctlFields select{font-size:14px;padding:9px}.controllerFull .ctlPatch{max-height:36dvh}.controllerFull .ctlRow{min-height:43px;font-size:14px}.ctlCable{margin:3px}.ctlCable i{height:4px;width:18px}.ctlIssue{color:#ffc893}dialog:has(.controllerFull){width:min(920px,95vw)}.dock{max-width:calc(100% - 14px);flex-wrap:wrap;justify-content:center}.selection{max-width:calc(100% - 18px);flex-wrap:wrap}.modeText{white-space:normal}.viewport:has(.boxPopover) .viewBar{z-index:2}
-@media(max-width:650px){.kitGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.kitGrid button{padding:5px;font-size:12px}.boxPopover{width:246px;padding:8px}.boxPopover .ctlPatch{max-height:96px}.ctlFields{margin:5px 0;gap:4px}.controllerFull .ctlFields{grid-template-columns:1fr 1fr}.dock button{padding:5px 6px}.boxPopover .ctlTitle strong{font-size:13px}}
+/* Toolbox */
+.kitTabs{display:grid;grid-template-columns:repeat(4,1fr);position:relative;background:#ffffff0a;border:1px solid var(--line);border-radius:11px;padding:3px;margin:0 0 12px}
+.kitTabs::before{content:"";position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px)/4);border-radius:8px;background:var(--ink-4);box-shadow:inset 0 0 0 1px var(--line-2);transform:translateX(calc(var(--i)*100%));transition:transform .3s var(--ease)}
+.kitTabs button{position:relative;border:0;background:transparent;color:var(--muted)}
+.kitTabs button:hover{background:transparent;color:var(--text)}
+.kitTabs button[aria-pressed=true]{color:var(--amber)}
+.kitFilter{margin-bottom:12px}
+.kitGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:8px;max-height:52dvh;min-height:180px;overflow:auto;padding:2px;align-content:start}
+.kitGrid button{justify-content:flex-start;text-align:left;min-height:60px;padding:9px 11px;gap:12px;background:#ffffff08;border-color:var(--line);border-radius:12px;white-space:normal;animation:rise .34s var(--ease) both;animation-delay:calc(var(--n)*22ms)}
+.kitGrid button:hover{border-color:color-mix(in srgb,var(--c) 60%,transparent);background:color-mix(in srgb,var(--c) 9%,transparent);transform:translateY(-2px);box-shadow:0 8px 22px #0006}
+.kitGrid i{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:10px;font-style:normal;color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent);transition:box-shadow .2s}
+.kitGrid button:hover i{box-shadow:0 0 22px color-mix(in srgb,var(--c) 45%,transparent)}
+.kitGrid svg{display:block}
+.kitGrid span{display:grid;gap:1px;min-width:0}
+.kitGrid b{font-weight:600;font-size:13px;line-height:1.25}
+.kitGrid small{font-size:11.5px;color:var(--faint);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kitNone{grid-column:1/-1}
 
+/* Cable route coordinates */
+.vertexHead,.vertex{display:grid;align-items:center;grid-template-columns:18px repeat(3,minmax(0,1fr)) 28px 28px;gap:4px;margin:5px 0}
+.vertices{padding:14px 0 0;color:var(--muted)}
+.vertices summary{margin-bottom:10px;font-size:13px;font-weight:600}
+.vertices input{width:100%;padding:5px 7px;font:500 12px var(--font-mono)}
+.vertices button{padding:0;min-height:28px}
+.vertexHead{font-size:11px;color:var(--faint)}
+.vertex>b{font:500 11px var(--font-mono);color:var(--faint)}
+.lift{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:0 4px}
+.lift input{width:64px;padding:5px 7px}
+
+/* Controller inspector */
+.boxPopover{z-index:4;position:absolute;left:12px;top:64px;width:min(310px,calc(100% - 16px));max-height:calc(100% - 16px);overflow:auto;padding:14px;background:#0c1322eb;backdrop-filter:blur(18px) saturate(1.4);border:1px solid #74e3ab66;border-radius:15px;box-shadow:0 14px 40px #0009,0 0 0 4px #74e3ab12;animation:fade .25s ease}
+.ctlTitle,.ctlPatch header,.ctlRow,.boxPopover footer,.controllerFull footer,.ctlAssign{display:flex;align-items:center;gap:8px}
+.ctlTitle strong,.ctlTitle small,.ctlRow span small{display:block}
+.ctlTitle strong{font-size:14px}
+.ctlTitle small{font-size:11.5px;margin-top:1px}
+.ctlTitle div{min-width:0;overflow:hidden;overflow-wrap:anywhere}
+.ctlTitle button{margin-left:auto;border-color:transparent;background:none;min-height:0;padding:6px;color:var(--muted)}
+.ctlTitle button:hover{background:#ffffff14;color:var(--text)}
+.ctlMark{display:grid;place-items:center;background:#74e3ab1a;border-radius:10px;width:36px;height:36px;font-style:normal;color:var(--pine);flex:none}
+.ctlFields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.ctlFields .field{min-width:0}
+.ctlFields select,.ctlFields input{width:100%;font-size:12px;padding:6px 8px}
+.ctlFields select{padding-right:24px}
+.ctlCapacity{align-self:end;border:1px solid var(--line);background:#ffffff08;border-radius:8px;padding:6px 9px;font-size:12px;color:var(--muted)}
+.ctlCapacity b{color:var(--text);font-family:var(--font-mono)}
+.boxPopover form>.primary,.controllerFull form>.primary{width:100%;margin-bottom:10px}
+.ctlPatch header{justify-content:space-between;color:var(--faint);padding:9px 0;font-size:11px;letter-spacing:.07em;text-transform:uppercase;position:sticky;top:0;background:inherit}
+.ctlPatch{border-top:1px solid var(--line);max-height:180px;overflow:auto}
+.ctlRow{border-top:1px solid var(--line);min-height:34px;font-size:12.5px}
+.ctlRow>b{font:600 10.5px var(--font-mono);color:var(--amber);white-space:nowrap;min-width:36px}
+.ctlRow>span{flex:1;min-width:0;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+.ctlRow span small{font-family:var(--font-mono);font-size:11px}
+.ctlRow button{font-size:11.5px;min-height:26px;padding:2px 8px}
+.ctlRow .powerToggle{background:transparent;border-color:transparent;color:var(--faint);padding:4px}
+.ctlRow .powerToggle[aria-pressed=true]{color:var(--pine);filter:drop-shadow(0 0 4px #74e3ab99)}
+.ctlPatch p,.ctlIssue{font-size:12.5px;color:var(--faint);margin:6px 0 10px}
+.boxPopover footer,.controllerFull footer{margin-top:10px;justify-content:space-between}
+.controllerFull footer{position:static;margin:16px 0 0;padding:0;background:none;border:0;backdrop-filter:none}
+.ctlAssign{margin-top:16px;align-items:end}
+.ctlAssign .field:first-child{flex:1}
+.ctlAssign .field:nth-child(2){width:84px}
+.controllerFull{padding:0}
+.controllerFull .ctlFields{grid-template-columns:repeat(3,minmax(0,1fr))}
+.controllerFull .ctlFields input,.controllerFull .ctlFields select{font-size:14px;padding:9px 10px}
+.controllerFull .ctlPatch{max-height:36dvh}
+.controllerFull .ctlRow{min-height:44px;font-size:14px}
+.ctlCable{margin:3px}
+.ctlCable i{display:inline-block;height:4px;width:18px;border-radius:2px}
+.ctlIssue{color:var(--amber)}
+.viewport:has(.boxPopover) .viewBar{z-index:2}
+@media(max-width:650px){.kitGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.kitGrid button{padding:7px;gap:9px}.kitGrid i{width:32px;height:32px}.kitTabs button .ico{display:none}.boxPopover{width:250px;padding:10px}.boxPopover .ctlPatch{max-height:96px}.ctlFields{margin:6px 0;gap:5px}.controllerFull .ctlFields{grid-template-columns:1fr 1fr}}
