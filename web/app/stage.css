@@ -69,3 +69,19 @@
 .ctlIssue{color:var(--amber)}
 .viewport:has(.boxPopover) .viewBar{z-index:2}
 @media(max-width:650px){.kitGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.kitGrid button{padding:7px;gap:9px}.kitGrid i{width:32px;height:32px}.kitTabs button .ico{display:none}.boxPopover{width:250px;padding:10px}.boxPopover .ctlPatch{max-height:96px}.ctlFields{margin:6px 0;gap:5px}.controllerFull .ctlFields{grid-template-columns:1fr 1fr}}
+.gardenCatalog{position:fixed;z-index:35;left:12px;top:74px;width:min(348px,calc(100vw - 24px));max-height:calc(100dvh - 90px);display:flex;flex-direction:column;overflow:hidden;padding:14px;border-radius:16px;border:1px solid var(--line-2);background:var(--ink-2);color:var(--text);box-shadow:var(--shadow)}
+.gardenCatalog.dragging{opacity:0;pointer-events:none}
+.gardenCatalog header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.gardenCatalog h2{margin:0;font-size:20px}
+.gardenCatalog .kitTabs button{min-width:0;padding:6px 2px;font-size:12px}
+.gardenCatalog .kitTabs button .ico{display:none}
+.gardenCatalog .kitFilter{flex:none}
+.plantGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;overflow:auto;overscroll-behavior:contain;padding:2px}
+.plantGrid .plantCard{display:grid;gap:1px;justify-items:start;justify-content:stretch;text-align:left;padding:0 9px 7px;overflow:hidden;border:1px solid var(--line);border-radius:10px;background:radial-gradient(ellipse at 50% 35%,#414d44,#27332f 65%,#202a28);touch-action:none;user-select:none;cursor:grab}
+.plantGrid .plantCard{position:relative;-webkit-touch-callout:none}
+.plantCard::after{content:"";position:absolute;right:7px;top:7px;width:9px;height:13px;background:radial-gradient(circle,#b4c4ac 1px,transparent 1.4px) 0 0/4px 4px;opacity:.62}
+.plantCard:hover,.plantCard:focus-visible{border-color:#a7bc96}
+.plantCard img{width:100%;height:clamp(54px,10vh,98px);object-fit:contain;pointer-events:none;filter:drop-shadow(1px 4px 3px #0004)}
+.plantCard span{font-weight:600;color:#eef0df;white-space:normal;line-height:1.15}
+.plantCard small{color:#bfccba;font-size:11px;font-variant-numeric:tabular-nums}
+@media(max-width:720px){.gardenCatalog{top:auto;bottom:8px;left:8px;width:calc(100% - 16px);max-height:58dvh;padding:10px}.plantGrid{grid-template-columns:repeat(3,minmax(0,1fr))}.plantCard span{font-size:12px}.gardenCatalog header,.gardenCatalog .kitTabs,.gardenCatalog .kitFilter{margin-bottom:6px}}

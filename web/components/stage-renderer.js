@@ -91,6 +91,7 @@ function cableObject(c,design,pathFor){
 function disposeGroup(group){const materials=new Set();group.traverse(o=>{o.geometry?.dispose();if(o.material)materials.add(o.material)});materials.forEach(m=>m.dispose());group.clear()}
 export function stageRenderer(scene,pathFor){
  const props=new T.Group(),wires=new T.Group(),garden=new T.Group();scene.add(props,wires,garden);let wireRecords=new Map(),emitters=[],faces=[],cached=new Map(),lastDesign=null,lastModel=null;
+ const plantObjects=new Map();
  let visibilityKey=null,visibilitySel=null,visibilityWiring=null,pulseKey=null,selected=null,paths=[],pulseCount=0;
  const pulseGeo=new T.BufferGeometry(),pulseMat=new T.PointsMaterial({color:"#fff1ac",size:.095,sizeAttenuation:true,transparent:true,opacity:.94,depthWrite:false});
  const pulseMesh=new T.Points(pulseGeo,pulseMat);pulseMesh.frustumCulled=false;scene.add(pulseMesh);
@@ -111,8 +112,19 @@ export function stageRenderer(scene,pathFor){
  }
  function sync(design,targets,fallback){
   if(design===lastDesign&&targets.length===lastModel)return;lastDesign=design;lastModel=targets.length;
-  disposeGroup(props);disposeGroup(wires);disposeGroup(garden);emitters=[];faces=[];
-  for(const p of design.plants||[])if(p.visible)garden.add(plantMesh(p));
+  disposeGroup(props);disposeGroup(wires);emitters=[];faces=[];
+  const visible=new Set();
+  for(const p of design.plants||[])if(p.visible){
+   visible.add(p.id);
+   let group=plantObjects.get(p.id);
+   if(group?.userData.kind!==p.kind){
+    if(group){garden.remove(group);disposeGroup(group)}
+    group=plantMesh(p,fallback);group.userData.kind=p.kind;plantObjects.set(p.id,group);garden.add(group);
+   }
+   group.position.fromArray(p.point);group.scale.set(p.width,p.height,p.width);
+   group.rotation.y=T.MathUtils.degToRad(p.rotation);group.updateMatrixWorld(true);
+  }
+  for(const [id,group] of plantObjects)if(!visible.has(id)){garden.remove(group);disposeGroup(group);plantObjects.delete(id)}
   const gardenKey=JSON.stringify(design.plants);const surfaces=[...targets,...garden.children.flatMap(g=>g.children)];
   const retained=new Map();
   for(const f of design.fixtures.filter(f=>f.shape==="flood"&&f.visible&&f.points.length)){
@@ -132,7 +144,9 @@ export function stageRenderer(scene,pathFor){
   if(fallback){for(const root of [props,wires,garden]){root.updateMatrixWorld(true);root.traverse(o=>{if(!o.isMesh)return;const g=o.geometry,a=g.attributes.position,ix=g.index,glow=g.attributes.strength;
    const p=Array.from({length:a.count},(_,i)=>new T.Vector3().fromBufferAttribute(a,i).applyMatrix4(o.matrixWorld));
    for(let i=0;i<(ix?.count||a.count);i+=3){const [j,k,l]=[i,i+1,i+2].map(x=>ix?ix.getX(x):x);
-    faces.push({a:p[j],b:p[k],c:p[l],material:o.material,object:o,wiring:root===wires,glow:glow?(glow.getX(j)+glow.getX(k)+glow.getX(l))/3:null})}
+    const leaf=g.attributes.color;
+    const tint=leaf?new T.Color().fromBufferAttribute(leaf,j):null;
+    faces.push({a:p[j],b:p[k],c:p[l],day:tint?.getHexString(),night:tint?.multiplyScalar(.42).getHexString(),material:o.material,object:o,wiring:root===wires,glow:glow?(glow.getX(j)+glow.getX(k)+glow.getX(l))/3:null})}
   })}}
  }
  function update(state,color,time){energy(state,time);wires.visible=state.wiring||!!state.design?.devices.some(d=>d.id===state.sel);
@@ -140,8 +154,8 @@ export function stageRenderer(scene,pathFor){
   for(const g of wires.children){const c=wireRecords.get(g.userData.entity);if(!c)continue;const hasBox=state.design.devices.some(d=>d.id===state.sel);const focus=c.id===state.sel||connected(c,state.sel,state.design);g.visible=(state.wiring&&!c.inferred)||focus;const mat=g.children[0].material;mat.color.set(c.color).multiplyScalar(hasBox&&!focus?.26:focus?1.55:1)}}
   for(const {f,mat,lens} of emitters){const c=color(f,0,time,state.play);mat.uniforms.tint.value.copy(c);mat.uniforms.gain.value=state.night?1:.62;lens.color.copy(c)}
  }
- function software(out,screen,wiring){if(pulseMesh.visible){const attr=pulseGeo.attributes.position;for(let i=0;i<attr.count;i++){const p=screen(new T.Vector3().fromBufferAttribute(attr,i));out.push({...p,z:p.z-.00001,c:"#fff1ac"})}}for(const f of faces){if(f.wiring&&(!wires.visible||!f.object.parent.visible))continue;const a=screen(f.a),b=screen(f.b),c=screen(f.c);if(a.z< -1||a.z>1)continue;
-  const mat=f.material,fill=(mat.color||mat.uniforms.tint.value).getHexString();out.push({a,b,c,z:(a.z+b.z+c.z)/3,fill:"#"+fill,alpha:f.glow===null?1:f.glow*mat.uniforms.gain.value})}}
+ function software(out,screen,night){if(pulseMesh.visible){const attr=pulseGeo.attributes.position;for(let i=0;i<attr.count;i++){const p=screen(new T.Vector3().fromBufferAttribute(attr,i));out.push({...p,z:p.z-.00001,c:"#fff1ac"})}}for(const f of faces){if(f.wiring&&(!wires.visible||!f.object.parent.visible))continue;const a=screen(f.a),b=screen(f.b),c=screen(f.c);if(a.z< -1||a.z>1)continue;
+  const mat=f.material,fill=(night?f.night:f.day)??(mat.color||mat.uniforms.tint.value).getHexString();out.push({a,b,c,z:(a.z+b.z+c.z)/3,fill:"#"+fill,alpha:f.glow===null?1:f.glow*mat.uniforms.gain.value})}}
  function pick(ray){const hits=ray.intersectObjects(wires.visible?[props,wires,garden]:[props,garden],true);
   for(const hit of hits){if(!hit.object.visible||!hit.object.parent.visible)continue;for(let o=hit.object;o;o=o.parent){if(o.userData.entity)return {id:o.userData.entity,distance:hit.distance}}}return null}
  return {sync,update,software,pick,animated:()=>pulseMesh.visible,surfaces:()=>garden.children.flatMap(g=>g.children),dispose(){disposeGroup(props);disposeGroup(wires);disposeGroup(garden);pulseGeo.dispose();pulseMat.dispose();scene.remove(pulseMesh);cached.clear();scene.remove(props,wires,garden)}};

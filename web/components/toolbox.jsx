@@ -4,6 +4,7 @@ import {lampPresets,cableKinds,endpoints,cablePoints} from "../lib/stage";
 import {species,dressings,branches} from "../lib/garden";
 import {hardware,fixtures} from "../lib/show";
 import {I} from "./ui-kit";
+import {GardenCatalog} from "./garden-catalog";
 const glyphs={
  flood:"M3 9l8-4 3 7-8 3z M7 15l-2 5h9 M15 6l5-3 M16 9h6 M16 12l5 3",run:"M2 10q5-7 10 0t10 0 M5 7v5m6-4v5m6-2v5m4-7v4",
  icicles:"M2 6q10 3 20 0 M5 7v8m4-7v12m4-12v6m4-6v10m4-11v6",net:"M3 5h18v14H3z M3 5l14 14 M8 5l13 13 M3 11l8 8 M21 5L7 19 M16 5L3 18 M21 12l-7 7",matrix:"M2 5h20v14H2z M7 5v14m5-14v14m5-14v14 M2 10h20 M2 14h20",
@@ -13,11 +14,13 @@ const glyphs={
 };
 function Glyph({name}){return <svg width="23" height="23" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={glyphs[name]||glyphs.box}/></svg>}
 const kitTabs=[["Lights","bulb"],["Equipment","box"],["Cables","cable"],["Garden","tree"]];
-export function Toolbox({initial,close,light,equipment,cable,plant}){
+export function Toolbox({initial,close,light,equipment,cable,plant,engine,dropPlant,openLayout}){
  const [tab,set]=useState(initial||"Lights"),[search,filter]=useState("");
- const items=tab==="Lights"?lampPresets.map(v=>[v[0],v[1],v[4],()=>light(v),fixtures[v[2]]]):tab==="Equipment"?Object.entries(hardware).map(([k,v])=>[v.name,["computer","switch"].includes(k)?k:["rx","tx"].includes(k)?"radio":"box","#8ec5ff",()=>equipment(k),v.ports?v.ports+(v.kind==="pixel"?" pixel ports":v.kind==="dmx"?" addresses":" outputs"):""]):tab==="Cables"?Object.entries(cableKinds).map(([k,v])=>[v.name,"cable",v.color,()=>cable(k),""]):Object.entries(species).map(([k,v])=>[v,k==="evergreen"?"tree":k,"#8fd69b",()=>plant(k),""]);
+ const tabs=<div className="kitTabs" style={{"--i":kitTabs.findIndex(t=>t[0]===tab)}}>{kitTabs.map(([t,icon])=><button type="button" key={t} aria-pressed={tab===t} onClick={()=>{if(t==="Garden")openLayout();set(t);filter("")}}><I n={icon} size={15}/>{t}</button>)}</div>;
+ if(tab==="Garden")return <GardenCatalog tabs={tabs} search={search} setSearch={filter} close={close} engine={engine} place={plant} drop={dropPlant}/>;
+ const items=tab==="Lights"?lampPresets.map(v=>[v[0],v[1],v[4],()=>light(v),fixtures[v[2]]]):tab==="Equipment"?Object.entries(hardware).map(([k,v])=>[v.name,["computer","switch"].includes(k)?k:["rx","tx"].includes(k)?"radio":"box","#8ec5ff",()=>equipment(k),v.ports?v.ports+(v.kind==="pixel"?" pixel ports":v.kind==="dmx"?" addresses":" outputs"):""]):Object.entries(cableKinds).map(([k,v])=>[v.name,"cable",v.color,()=>cable(k),""]);
  const shown=items.filter(([n])=>n.toLowerCase().includes(search.trim().toLowerCase()));
- return <Modal title="Toolbox" close={close} className="wide toolbox"><div className="kitTabs" style={{"--i":kitTabs.findIndex(t=>t[0]===tab)}}>{kitTabs.map(([t,icon])=><button type="button" key={t} aria-pressed={tab===t} onClick={()=>{set(t);filter("")}}><I n={icon} size={15}/>{t}</button>)}</div>
+ return <Modal title="Toolbox" close={close} className="wide toolbox">{tabs}
  <label className="search kitFilter"><I n="search" size={15}/><input autoFocus aria-label="Search toolbox" placeholder={"Find "+tab.toLowerCase()} value={search} onChange={e=>filter(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&shown[0]){e.preventDefault();shown[0][3]()}}}/></label>
  <div className="kitGrid" key={tab}>{shown.map(([n,g,color,go,meta],i)=><button type="button" key={n} style={{"--c":color,"--n":Math.min(i,14)}} onClick={go}><i><Glyph name={g}/></i><span><b>{n}</b>{meta&&<small>{meta}</small>}</span></button>)}{!shown.length&&<p className="kitNone">Nothing matches “{search}”.</p>}</div></Modal>
 }

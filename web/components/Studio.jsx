@@ -34,7 +34,7 @@ export default function Studio(){
  const f=design?.fixtures.find(v=>v.id===sel);
  const d=design?.devices.find(row=>row.id===sel),p=design?.plants?.find(row=>row.id===sel),c=useMemo(()=>design?sceneCables(design).find(row=>row.id===sel):null,[design,sel]);
  const cableDraft=useMemo(()=>{if(mode!=="cable"||!pending||!design)return draft;const ends=endpoints(design);return [ends.find(e=>e.id===pending.from)?.point,...draft,ends.find(e=>e.id===pending.to)?.point].filter(Boolean)},[mode,pending,design,draft]);
- const sceneState=useMemo(()=>({design,sel,hover,night,play,labels,wiring,mode,draft:cableDraft,routeStyle:mode==="cable"?pending?.style:null,routeSag:pending?.sag,routeColor:pending?.color}),[design,sel,hover,night,play,labels,wiring,mode,cableDraft,pending]);
+ const sceneState=useMemo(()=>({design,sel,hover,night,play,labels,wiring,mode,plant:mode==="plant"?pending:null,draft:cableDraft,routeStyle:mode==="cable"?pending?.style:null,routeSag:pending?.sag,routeColor:pending?.color}),[design,sel,hover,night,play,labels,wiring,mode,cableDraft,pending]);
  const reset=()=>{setMode("select");setDraft([]);setPending(null)};
  useEffect(()=>{pick("");reset();dlg(null);setPlay(false);filter("")},[store.id]);
  useEffect(()=>{if(tab!=="Layout"){setPlay(false);setReady(false);setView("Street");reset()}},[tab]);
@@ -50,7 +50,7 @@ export default function Studio(){
  function box(d,netId){dlg({kind:"device",v:d||defaultDevice(netId||design.networks[0]?.id),existing:!!d})}
  function openRecord(v){const fx=design.fixtures.find(x=>x.id===v),d=design.devices.find(x=>x.id===v),n=design.networks.find(x=>x.id===v);if(fx)edit(fx);else if(d)box(d);else if(n)net(n)}
  function cableForm(v,existing=false){setWiring(true);dlg({kind:"cable",v,existing})}
- function plantLights(plant,fixture){dlg({kind:"dress",v:fixture||{...defaultFixture(),name:plant.name+" lights",zone:"Front yard",plant:plant.id,endPlant:plant.id,dressing:plant.kind==="deciduous"?"pendant":"wrap",branchA:0,branchB:4,drop:.8,turns:5,count:60,mount:"",points:[]}})}
+ function plantLights(plant,fixture){dlg({kind:"dress",v:fixture||{...defaultFixture(),name:plant.name+" lights",zone:"Front yard",plant:plant.id,endPlant:plant.id,dressing:["deciduous","birch","winterberry"].includes(plant.kind)?"pendant":"wrap",branchA:0,branchB:4,drop:.8,turns:5,count:60,mount:"",points:[]}})}
  function placeEquipment(model){
   const m=hardware[model],protocol=m.net.includes("sacn")&&(!m.ports||m.net.length===1)?"sacn":m.net.includes("elor")?"elor":m.net[0];
   const n=design.networks.find(n=>n.protocol===protocol)||{...defaultNet(),protocol,name:protocol==="sacn"?"Show LAN":protocol==="lor"?"Regular":"Enhanced LOR",speed:protocol==="sacn"?0:protocol==="lor"?57600:500000,source:protocol==="sacn"?"Ethernet interface":"USB485-HS"};
@@ -58,8 +58,12 @@ export default function Studio(){
  }
  function routeOutput(fx){const kind=fx.type==="ac"||fx.type==="relay"?"power":fx.type==="pixel"||fx.type==="rgbw"?"pixel":"dc";const cable={...defaultCable(kind),name:(d.name+" · "+fx.name).slice(0,160),from:"d/"+d.id,to:"f/"+fx.id,output:fx.port};setWiring(true);begin(cable,"cable")}
  function anchor(x,y,z){const el=viewport.current?.querySelector(".boxPopover");if(!el)return;const area=viewport.current;el.style.left=Math.max(8,Math.min(area.clientWidth-el.offsetWidth-8,x+18))+"px";el.style.top=Math.max(8,Math.min(area.clientHeight-el.offsetHeight-8,y-el.offsetHeight*.65))+"px";el.style.setProperty("--pin-y",Math.max(10,Math.min(el.offsetHeight-10,y-el.offsetTop))+"px");el.style.visibility=z>1||z< -1?"hidden":"visible"}
+ function placePlant(plant,point){
+  if(design.plants.length>=150&&!design.plants.some(row=>row.id===plant.id)){setError("This show already has 150 plantings.");return}
+  upsert("plants",{...plant,point});reset();pick(plant.id);setMobile(false);close()
+ }
  function place(v,normal){if(mode==="aim"){upsert("fixtures",aimAt(pending,v));reset();return}
- if(mode==="plant"){upsert("plants",{...pending,point:v});reset();return}
+ if(mode==="plant"){placePlant(pending,v);return}
  if(mode==="cable"){if(cableDraft.length<160){draftNormals.current.push(lift?null:normal);setDraft(a=>[...a,[v[0],v[1]+lift,v[2]]])}return}
  if(mode==="draw"){if(draft.length<160){draftNormals.current.push(normal);setDraft(a=>[...a,v])}return}
  if(mode==="box"){const {newNetwork,...row}=pending;if(newNetwork&&!design.networks.some(n=>n.id===newNetwork.id))store.change({...design,networks:[...design.networks,newNetwork],devices:[...design.devices,{...row,point:v,normal}]});else upsert("devices",{...row,point:v,normal});setWiring(true)}else if(pending){upsert("fixtures",{...pending,mount:"",normal,points:[v]});pick(pending.id)}reset()}
@@ -138,7 +142,7 @@ export default function Studio(){
   return [
    {group:"Actions",label:"Open toolbox",icon:"plus",keys:"T",run:()=>dlg({kind:"tools",tab:"Lights"})},
    {group:"Actions",label:"Draw strand",icon:"draw",keys:"D",run:drawStrand},
-   {group:"Actions",label:"Add planting",icon:"tree",run:()=>dlg({kind:"tools",tab:"Garden"})},
+   {group:"Actions",label:"Add planting",icon:"tree",run:layout(()=>dlg({kind:"tools",tab:"Garden"}))},
    {group:"Actions",label:"Route cable",icon:"cable",run:()=>dlg({kind:"tools",tab:"Cables"})},
    {group:"Actions",label:"Add equipment",icon:"box",run:()=>dlg({kind:"tools",tab:"Equipment"})},
    {group:"Actions",label:play?"Stop preview":"Preview show",icon:play?"pause":"play",keys:"Space",run:layout(()=>setPlay(v=>!v))},
@@ -219,7 +223,7 @@ export default function Studio(){
  <input type="file" hidden ref={file} accept=".json,application/json" onChange={importFile}/>
  {dialog?.kind==="palette"&&<CommandPalette items={palette()} close={close}/>}
  {dialog?.kind==="shortcuts"&&<Shortcuts close={close}/>}
- {dialog?.kind==="tools"&&<Toolbox initial={dialog.tab} close={close} equipment={placeEquipment} cable={k=>cableForm(defaultCable(k))} plant={k=>begin(newPlant(k),"plant")} light={([name,shape,type,count,color])=>{const v={...defaultFixture(),name,zone:"Front yard",shape,type,count,color,mount:"porch.fascia",points:[]};if(shape==="run")edit(null,v);else begin(v,"prop")}}/>}
+ {dialog?.kind==="tools"&&<Toolbox engine={engine} dropPlant={placePlant} openLayout={()=>setTab("Layout")} initial={dialog.tab} close={close} equipment={placeEquipment} cable={k=>cableForm(defaultCable(k))} plant={k=>begin(newPlant(k),"plant")} light={([name,shape,type,count,color])=>{const v={...defaultFixture(),name,zone:"Front yard",shape,type,count,color,mount:"porch.fascia",points:[]};if(shape==="run")edit(null,v);else begin(v,"prop")}}/>}
  {dialog?.kind==="cable"&&<CableForm initial={dialog.v} existing={dialog.existing} design={design} close={close} remove={()=>remove("cables",dialog.v)} commit={(v,draw)=>{if(draw)begin(v,"cable");else{upsert("cables",v);pick(v.id);close()}}}/>}
  {dialog?.kind==="plant"&&<PlantForm initial={dialog.v} close={close} remove={()=>remove("plants",dialog.v)} commit={v=>{upsert("plants",v);close()}}/>}
  {dialog?.kind==="dress"&&<DressForm initial={dialog.v} design={design} close={close} commit={v=>{const fx=mountedFixture(v,design.plants);upsert("fixtures",fx);pick(fx.id);close()}}/>}

@@ -1,9 +1,17 @@
-export const species={deciduous:"Branching tree",evergreen:"Evergreen",shrub:"Bush"};
+export const plantCatalog={
+ deciduous:{name:"Winter maple",height:6,width:4.6},
+ birch:{name:"Paper birch",height:6.5,width:3.6},
+ evergreen:{name:"Blue spruce",height:4,width:3},
+ cedar:{name:"Columnar arborvitae",height:3.2,width:1.35},
+ shrub:{name:"Boxwood bush",height:1,width:1.6},
+ winterberry:{name:"Winterberry holly",height:1.65,width:1.9}
+};
+export const species=Object.fromEntries(Object.entries(plantCatalog).map(([kind,p])=>[kind,p.name]));
 export const dressings={pendant:"Hanging snowflake",drop:"Vertical drop",hang:"Branch-to-branch strand",wrap:"Canopy spiral",net:"Canopy net",trunk:"Trunk wrap"};
 export const branches=["Front","Front right","Right","Back right","Back","Back left","Left","Front left"];
 const tau=2*Math.PI;
 const round=p=>p.map(n=>Number(n.toFixed(4)));
-export function newPlant(kind="deciduous"){return {id:crypto.randomUUID(),name:species[kind],kind,point:[0,0,0],height:kind==="shrub"?1:4,width:kind==="shrub"?1.6:3,rotation:0,visible:true}}
+export function newPlant(kind="deciduous"){const {name,height,width}=plantCatalog[kind];return {id:crypto.randomUUID(),name,kind,point:[0,0,0],height,width,rotation:0,visible:true}}
 export function propertyPlants(){
  const scale=34*.3048/11.16,clamp=t=>Math.min(1,Math.max(0,t));
  const positions=[[-4.54,-2.96,.76,1.22],[-2.67,-2.94,.65,1.16],[2.75,-2.96,.68,1.06],[4.44,-2.98,.83,1.25],[-6.67,1.65,.75,2.25],[-6.77,5.45,.81,2.44],[11.15,-3.10,.98,3.75],[11.60,-.90,1.04,4.05],[11.39,1.32,1,3.95]];
@@ -16,7 +24,7 @@ export function propertyPlants(){
 }
 export function branchTip(p,index){
  const a=(index/8+(p.rotation||0)/360)*tau;
- const radius=p.width*.5*(index%2?.87:1),level=p.kind==="shrub"?.65:p.kind==="evergreen"?.49:.64;
+ const radius=p.width*.5*(index%2?.87:1)*(p.kind==="cedar"?.82:1),level=p.kind==="shrub"?.65:p.kind==="evergreen"?.49:.64;
  return [p.point[0]+Math.sin(a)*radius,p.point[1]+p.height*(level+(index%3)*.085),p.point[2]+Math.cos(a)*radius];
 }
 export function mountedFixture(f,plants){
@@ -37,7 +45,7 @@ export function mountedFixture(f,plants){
   for(let i=0;i<=steps;i++){
    const t=i/steps,a=t*tau*turns+(p.rotation||0)*tau/360;
    const level=isTrunk?.04+t*(p.kind==="deciduous"?.41:.30):isNet?.14+.78*(.5-.5*Math.cos(t*tau*turns*2)):.12+.81*t;
-   const radius=isTrunk?p.width*(.032-.012*t):p.width*.51*(p.kind==="evergreen"?1-level*.93:p.kind==="shrub"?Math.sqrt(Math.max(.02,1-((level-.5)/.54)**2)):Math.sin(Math.PI*(.10+.80*t))*.86);
+   const radius=isTrunk?p.width*(.032-.012*t):p.width*.51*(p.kind==="evergreen"?1-level*.93:["shrub","cedar","winterberry"].includes(p.kind)?Math.sqrt(Math.max(.02,1-((level-.5)/.54)**2)):Math.sin(Math.PI*(.10+.80*t))*.86);
    points.push(round([p.point[0]+Math.sin(a)*radius,p.point[1]+level*p.height,p.point[2]+Math.cos(a)*radius]));
   }
  }

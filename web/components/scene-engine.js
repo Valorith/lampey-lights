@@ -7,6 +7,7 @@ import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import {wirePoints,mounts,mountNames} from "../lib/show";
 import {stageRenderer} from "./stage-renderer";
+import {plantMesh} from "./plant-mesh.js";
 import {routeLength,sceneCables,beamDirection,lampOrigin,cablePoints,routedPoints} from "../lib/stage";
 
 const vec=p=>new T.Vector3(...p);
@@ -85,6 +86,36 @@ export function createScene(host,events){
  })}
  const stage=stageRenderer(scene,cordPath);
  function screen(p){const v=p.clone().project(cam);return {x:(v.x+1)*w/2,y:(1-v.y)*h/2,z:v.z}}
+ let ghost=null,ghostPlant=null,ghostRoot=null;
+ function clearPlantPreview(){
+  if(ghost){scene.remove(ghost);for(const m of ghost.children){m.geometry.dispose();m.material.dispose()}}
+  ghost=null;ghostPlant=null;ghostRoot=null;invalidate();
+ }
+ function lawnAt(ev){
+  const rect=surface.getBoundingClientRect();
+  if(!rect.width||!rect.height||!host.contains(document.elementFromPoint(ev.clientX,ev.clientY)))return null;
+  const x=(ev.clientX-rect.left)/rect.width,y=(ev.clientY-rect.top)/rect.height;
+  if(x<0||x>1||y<0||y>1)return null;
+  cam.updateMatrixWorld();
+  ray.setFromCamera({x:2*x-1,y:1-2*y},cam);
+  const hit=ray.intersectObjects(pickMeshes,false).find(h=>h.object.userData.placement_surface!==false);
+  if(!hit||!(hit.object.material?.name==="Lawn"||/^graded[ _]lawn$/i.test(hit.object.name)))return null;
+  return hit.point.toArray();
+ }
+ function previewPlant(plant,ev){
+  if(ghostPlant?.id!==plant.id){clearPlantPreview();ghostPlant=plant}
+  if(!gl&&!plantImages.has(plant.kind)){
+   const image=new Image();image.onload=invalidate;image.src="/plants/"+plant.kind+".webp";plantImages.set(plant.kind,image);
+  }
+  ghostRoot=lawnAt(ev);
+  if(gl&&ghostRoot&&!ghost){
+   ghost=plantMesh(plant);
+   for(const m of ghost.children){m.material.transparent=true;m.material.opacity=.76;m.material.depthWrite=false}
+   scene.add(ghost);
+  }
+  if(ghost){ghost.visible=!!ghostRoot;if(ghostRoot)ghost.position.fromArray(ghostRoot)}
+  invalidate();return ghostRoot;
+ }
  function resolveHit(ev){
   const rect=surface.getBoundingClientRect(),x=ev.clientX-rect.left,y=ev.clientY-rect.top;
   ray.setFromCamera({x:2*x/w-1,y:1-2*y/h},cam);
@@ -152,7 +183,7 @@ export function createScene(host,events){
    for(const tri of triangles){if(tri.n.dot(cam.position.clone().sub(tri.a))<=0)continue;const a=screen(tri.a),b=screen(tri.b),c=screen(tri.c);
     if(a.z>1||a.z< -1||Math.abs((a.x-b.x)*(c.y-b.y)-(c.x-b.x)*(a.y-b.y))<.52)continue;
     faces.push({z:(a.z+b.z+c.z)/3,a,b,c,fill:state.night?tri.night:tri.day})}
-   stage.software(faces,screen,state.wiring);
+   stage.software(faces,screen,state.night);
    const key=[...cam.matrixWorld.elements,w,h,state.sel,state.wiring].join(",");
    if(!depthCache||key!==depthKey){depthKey=key;depthCache=depthAtPoints(faces,w,h)}
    faces.sort((a,b)=>b.z-a.z);for(const f of faces){ctx.globalAlpha=f.alpha??1;if(f.a){ctx.fillStyle=f.fill;ctx.beginPath();ctx.moveTo(f.a.x,f.a.y);ctx.lineTo(f.b.x,f.b.y);ctx.lineTo(f.c.x,f.c.y);ctx.closePath();ctx.fill()}}ctx.globalAlpha=1;
@@ -160,6 +191,15 @@ export function createScene(host,events){
   }
   function line(points,color,dash=[]){if(!points.length)return;ink.strokeStyle=color;ink.lineWidth=1.6;ink.setLineDash(dash);ink.beginPath();points.forEach((p,i)=>{const v=screen(vec(p));if(i)ink.lineTo(v.x,v.y);else ink.moveTo(v.x,v.y)});ink.stroke();ink.setLineDash([])}
   function dot(p,color,r){const v=screen(vec(p));ink.beginPath();ink.fillStyle=color;ink.arc(v.x,v.y,r,0,Math.PI*2);ink.fill()}
+  if(ghostRoot){
+   const [x,y,z]=ghostRoot,r=ghostPlant.width*.5;
+   line(Array.from({length:41},(_,i)=>[x+r*Math.sin(i*Math.PI/20),y+.025,z+r*Math.cos(i*Math.PI/20)]),"#c6e4a1",[4,3]);
+   if(!gl){const foot=screen(vec(ghostRoot)),top=screen(vec([x,y+ghostPlant.height,z]));
+    const img=plantImages.get(ghostPlant.kind);
+    if(img?.naturalWidth){const height=Math.max(4,foot.y-top.y);ink.globalAlpha=.8;ink.drawImage(img,foot.x-height*.76,top.y-height*.08,height*1.52,height*1.15);ink.globalAlpha=1}
+    else line([ghostRoot,[x,y+ghostPlant.height,z]],"#c6e4a1");
+   }
+  }
   labels=[];
   function tag(p,text,color,id){const s=screen(vec(p));if(s.z>1||s.z< -1)return;ink.font="600 12px Figtree, system-ui, sans-serif";const tw=ink.measureText(text).width+20;let y=s.y-30;for(let n=0;n<4&&labels.some(l=>Math.abs(l.y-y)<21&&Math.abs(l.x-s.x)<(tw+l.w)/2);n++)y-=22;const x=s.x-tw/2;ink.fillStyle="#0a101dee";ink.beginPath();ink.roundRect(x,y,tw,21,6);ink.fill();ink.strokeStyle="#ffffff2e";ink.lineWidth=1;ink.stroke();ink.fillStyle=color;ink.beginPath();ink.roundRect(x+4,y+5,2.5,11,1.2);ink.fill();ink.fillStyle="#f5f0e6";ink.fillText(text,x+10,y+14.5);labels.push({x:s.x,y,w:tw,id})}
   for(const r of runs){if(r.pts.length&&(state.labels||r.f.id===state.sel||r.f.id===state.hover))tag(r.pts[Math.floor(r.pts.length/2)].toArray(),r.f.name,r.f.color,r.f.id);
@@ -185,7 +225,12 @@ export function createScene(host,events){
   if(state.mode==="edit"||state.mode==="cableEdit"){const c=state.mode==="cableEdit"&&wires.find(c=>c.id===state.sel);
    const pts=c?cablePoints(c,state.design):state.design.fixtures.find(f=>f.id===state.sel)?.points.map(p=>mountPoint(state.design.fixtures.find(f=>f.id===state.sel),p));const {x,y}=resolveHit(e);
    drag=pts?.findIndex((p,i)=>{if(c&&((!i&&c.from)||(i===pts.length-1&&c.to)))return false;const q=screen(vec(p));return Math.hypot(x-q.x,y-q.y)<17})??-1;if(drag>=0){controls.enabled=false;surface.setPointerCapture(e.pointerId)}}}
- function pointerUp(e){const before=down;down=null;if(!before)return;const hit=resolveHit(e);
+ function pointerUp(e){const before=down;down=null;if(!before)return;
+  if(state.mode==="plant"){
+   if(e.button===0&&Math.hypot(e.clientX-before[0],e.clientY-before[1])<=6){const point=lawnAt(e);if(point)events.place(point,[0,1,0])}
+   return;
+  }
+  const hit=resolveHit(e);
   if(drag>=0){const index=drag;drag=-1;controls.enabled=true;if(hit.point)events.move(index,hit.point,hit.normal);return}
   if(Math.hypot(e.clientX-before[0],e.clientY-before[1])>6||e.button!==0)return;
   if(["draw","prop","box","relocate","aim","cable","plant"].includes(state.mode)){if(hit.point)events.place(hit.point,hit.normal);return}
@@ -196,8 +241,12 @@ export function createScene(host,events){
   if(label)events.pick(label.id);else if(point&&object&&state.design?.plants?.some(p=>p.id===object.id))events.pick(point.id);else if(object&&object.distance<=hit.distance+.08)events.pick(object.id);else if(point)events.pick(point.id)
  }
  surface.addEventListener("pointerdown",pointerDown,true);surface.addEventListener("pointerup",pointerUp);const cancel=()=>{down=null;drag=-1;controls.enabled=true};surface.addEventListener("pointercancel",cancel);
+ const plantImages=new Map();
+ function movePreview(e){if(state.mode==="plant"&&state.plant&&!down&&e.pointerType!=="touch")previewPlant(state.plant,e)}
+ function leavePreview(){if(state.mode==="plant")clearPlantPreview()}
+ surface.addEventListener("pointermove",movePreview);surface.addEventListener("pointerleave",leavePreview);
  const visibility=()=>{if(!document.hidden)invalidate()};document.addEventListener("visibilitychange",visibility);window.addEventListener("focus",visibility);
- return {canRoute(row,group){if(!fitted||!state.design)return true;if(group==="fixtures"&&row.shape==="run"&&!row.plant&&row.points.length>1){const n=guideNormal(row.mount);return !fitted.route(row.points,{normals:n?row.points.map(()=>n):row.normals,window:true}).obstructed}if(group==="cables"&&row.attachment!=="free")return !fitted.route(terminals(row,state.design).raw,{radius:row.width/2,normals:row.normals}).obstructed;return true},length(id){const p=cache.get("c/"+id)||cache.get("f/"+id);return p?routeLength(p):null},update(s){const design=placeBodies(s.design),refresh=design!==state.design||s.night!==state.night;const preview=s.draft!==state.draft||refresh;state={...s,design};if(preview){const pts=s.draft||[];previewPath=pts.length>=2&&fitted&&s.routeStyle!=="hanging"?fitted.route(pts,{radius:s.mode==="cable"?.02:0,window:s.mode==="draw"}):routedPoints(pts,s.routeStyle||"corners",s.routeSag)}if(refresh)rebuild();else invalidate()},preset,focus,zoom(f){const offset=cam.position.clone().sub(controls.target);offset.setLength(Math.min(controls.maxDistance,Math.max(controls.minDistance,offset.length()*f)));fly(controls.target.clone().add(offset),controls.target.clone(),220)},
+ return {previewPlant,clearPlantPreview,lawnAt,canRoute(row,group){if(!fitted||!state.design)return true;if(group==="fixtures"&&row.shape==="run"&&!row.plant&&row.points.length>1){const n=guideNormal(row.mount);return !fitted.route(row.points,{normals:n?row.points.map(()=>n):row.normals,window:true}).obstructed}if(group==="cables"&&row.attachment!=="free")return !fitted.route(terminals(row,state.design).raw,{radius:row.width/2,normals:row.normals}).obstructed;return true},length(id){const p=cache.get("c/"+id)||cache.get("f/"+id);return p?routeLength(p):null},update(s){if(state.mode==="plant"&&s.mode!=="plant")clearPlantPreview();const design=placeBodies(s.design),refresh=design!==state.design||s.night!==state.night;const preview=s.draft!==state.draft||refresh;state={...s,design};if(preview){const pts=s.draft||[];previewPath=pts.length>=2&&fitted&&s.routeStyle!=="hanging"?fitted.route(pts,{radius:s.mode==="cable"?.02:0,window:s.mode==="draw"}):routedPoints(pts,s.routeStyle||"corners",s.routeSag)}if(refresh)rebuild();else invalidate()},preset,focus,zoom(f){const offset=cam.position.clone().sub(controls.target);offset.setLength(Math.min(controls.maxDistance,Math.max(controls.minDistance,offset.length()*f)));fly(controls.target.clone().add(offset),controls.target.clone(),220)},
  dispose(){disposed=true;cancelAnimationFrame(raf);observer.disconnect();controls.dispose();stage.dispose();document.removeEventListener("visibilitychange",visibility);window.removeEventListener("focus",visibility);scene.traverse(o=>{o.geometry?.dispose();for(const m of [].concat(o.material||[]))m.dispose()});gl?.dispose();host.replaceChildren()}}
 }
 
