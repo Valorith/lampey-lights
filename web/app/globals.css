@@ -98,7 +98,7 @@ kbd{font:500 10.5px/1 var(--font-mono);color:var(--muted);background:#ffffff0f;b
 @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}}
 
 /* ---------- Shell & header ---------- */
-.appShell{height:100dvh;min-height:460px;display:flex;flex-direction:column;overflow:hidden;background:var(--ink-0)}
+.appShell{height:100dvh;min-height:300px;padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);display:flex;flex-direction:column;overflow:hidden;background:var(--ink-0)}
 .top{height:58px;flex:none;display:flex;align-items:center;padding:0 16px 0 18px;gap:clamp(14px,3vw,44px);border-bottom:1px solid var(--line);background:linear-gradient(#0d1424,var(--ink-1));position:relative;z-index:8}
 .top::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,#ffc46b55 18%,transparent 46%);pointer-events:none}
 .brand{display:flex;align-items:center;gap:11px;white-space:nowrap}
@@ -383,17 +383,15 @@ dialog.palette{width:min(600px,94vw);margin-top:12dvh;max-height:70dvh;overflow:
 @keyframes toast{from{opacity:0;transform:translateX(24px)}}
 
 /* ---------- Responsive ---------- */
-@media(max-width:1100px){.paletteBtn span,.paletteBtn kbd{display:none}.paletteBtn{padding:0 9px}.projectBtn span{max-width:130px}.hint{display:none}}
+@media(max-width:1100px){.paletteBtn span,.paletteBtn kbd{display:none}.paletteBtn{padding:0 9px}.projectBtn span{max-width:130px}.hint{display:none}.brand b{display:none}}
 @media(max-width:950px){.top{gap:14px;padding:0 12px}.workspace{grid-template-columns:236px minmax(0,1fr)}.library{width:236px}.saveStatus span{display:none}.helpBtn{display:none}.dock button:not(.tool):not(.primary) span{display:none}.dock.busy button span{display:inline}}
-@media(max-width:720px){
-  .top{height:auto;flex-wrap:wrap;gap:8px 10px;padding:9px 10px}
-  .brand b{font-size:17px}.brand img{width:26px;height:26px}
-  .top nav{order:3;flex:0 0 100%}
-  .rightTop{gap:4px}
-  .projectBtn span{max-width:96px}
+@media(max-width:900px){.top nav .ico{display:none}.top nav button{padding:0 10px}.rightTop{flex:1 1 0;justify-content:flex-end}.projectBtn span{min-width:0}}
+/* Phones and short landscape screens: the scene panel becomes a drawer and the stage controls tighten. */
+@media(max-width:720px),(max-height:520px){
   .workspace,.workspace.collapsed{display:flex}
   .editor{flex:1}
-  .library,.workspace.collapsed .library{position:fixed;top:0;bottom:0;left:0;width:min(290px,86vw);z-index:12;box-shadow:12px 0 40px #000a;transform:translateX(-102%);opacity:1;visibility:hidden;pointer-events:auto;transition:transform .32s var(--ease),visibility .32s}
+  .library,.workspace.collapsed .library{position:fixed;top:0;bottom:0;left:0;width:min(290px,86vw);padding-top:calc(16px + env(safe-area-inset-top));padding-left:calc(12px + env(safe-area-inset-left));z-index:12;box-shadow:12px 0 40px #000a;transform:translateX(-102%);opacity:1;visibility:hidden;pointer-events:auto;transition:transform .32s var(--ease),visibility .32s}
+  .libBottom{padding-bottom:calc(13px + env(safe-area-inset-bottom))}
   .library.mobileOpen,.workspace.collapsed .library.mobileOpen{transform:none;visibility:visible}
   .scrim{display:block;position:fixed;inset:0;background:#03060d99;z-index:11;animation:fade .2s}
   .mobileClose{display:inline-flex}.collapseBtn,.library kbd{display:none}
@@ -401,17 +399,73 @@ dialog.palette{width:min(600px,94vw);margin-top:12dvh;max-height:70dvh;overflow:
   .zoomTools{display:none}
   .preview span:not(.eq){display:none}.preview{padding:0 12px}
   .viewBar{top:8px;left:8px;right:8px}
-  .stageBottom{bottom:10px;left:6px;right:6px}
+  .stageBottom{bottom:calc(10px + env(safe-area-inset-bottom));left:6px;right:6px;gap:8px}
   .selText{max-width:52vw}
+  /* The controller inspector docks to the bottom of the stage instead of following the box. */
+  .boxPopover{left:8px!important;right:8px;top:auto!important;bottom:calc(8px + env(safe-area-inset-bottom));width:auto;max-height:min(62%,420px);visibility:visible!important;padding:12px}
+  .boxPopover footer{flex-wrap:wrap}.boxPopover footer>button{flex:1 1 auto}
+  .boxPopover .ctlPatch{max-height:120px}
+}
+@media(max-height:520px){.top{height:48px}.stageBottom{bottom:calc(6px + env(safe-area-inset-bottom))}.boxPopover{max-height:calc(100% - 16px)}}
+@media(max-width:720px){
+  .top{height:auto;flex-wrap:wrap;gap:8px 10px;padding:8px 10px}
+  .brand img{width:28px;height:28px}
+  .top nav{order:3;flex:0 0 100%}
+  .top nav .ico{display:inline}
+  .rightTop{gap:4px}
+  .projectBtn{flex:0 1 auto;padding-inline:10px}
+  .projectBtn span{max-width:none}
+  .dock.busy{max-width:100%}
+  .modeText{flex:1 1 100%;justify-content:center;padding:4px 6px 6px;text-align:center}
   .page{padding:22px 12px 60px}
   .metrics{gap:8px}.metrics>div{grid-template-columns:1fr;padding:11px 12px}.metrics .ico{display:none}
   .node{flex-wrap:wrap;margin-left:18px}.connection{margin-left:0}
   .sectionHead{flex-wrap:wrap}
   .stateFilter{margin-left:0}
+  .filters .search{flex:1 1 100%}
   .modal{padding:16px}.modal footer{margin:18px -16px -16px;padding:12px 16px}
   .fields{gap:10px}
-  .toaster{left:12px;right:12px;bottom:12px;max-width:none}
+  .toaster{left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));max-width:none}
+  .appShell[data-tab=Layout] .toaster{bottom:calc(84px + env(safe-area-inset-bottom))}
   td,th{padding:10px 11px}
+}
+/* Labels sit under the dock icons where there is no room beside them and no tooltip to explain them. */
+@media(max-width:720px),(max-width:950px) and (hover:none){
+  .dock:not(.busy){gap:0;padding:4px;flex-wrap:nowrap}
+  .dock:not(.busy) button:not(.tool){flex-direction:column;gap:3px;min-height:50px;padding:4px 7px;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .dock:not(.busy) button:not(.tool):not(.primary) span{display:inline}
+  .dock:not(.busy) .tool{width:46px;height:50px}
+}
+@media(max-width:350px){.dock:not(.busy) button:not(.tool):not(.primary) span{display:none}.dock:not(.busy) button:not(.tool),.dock:not(.busy) .tool{min-height:42px;height:42px}}
+/* Patch tables become cards on phones. */
+@media(max-width:600px){
+  .tableWrap table,.tableWrap tbody{display:block}
+  .tableWrap tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .tableWrap tbody tr:last-child{border-bottom:0}
+  .tableWrap td{padding:0;border:0;min-width:0}
+  .patchTable thead tr{display:flex;gap:16px;overflow-x:auto;scrollbar-width:none;padding:10px 14px;background:#141d31;border-bottom:1px solid var(--line)}
+  .patchTable th{position:static;padding:0;border:0;background:none;flex:none}
+  .patchTable td:nth-child(1){grid-column:1;grid-row:1}
+  .patchTable td:nth-child(4){grid-column:2;grid-row:1}
+  .patchTable td:nth-child(2),.patchTable td:nth-child(3){grid-column:1/-1;font-size:11.5px}
+  .patchTable td:nth-child(3){color:var(--muted)}
+  .patchTable .stateChip{padding-block:3px}
+  .patchTable td:nth-child(3)::before{content:"Qty ";font-family:var(--font-ui);color:var(--faint)}
+  .historyTable thead{display:none}
+  .historyTable td:nth-child(1){grid-column:1}
+  .historyTable td:nth-child(4){grid-column:2;grid-row:1/span 3}
+  .historyTable td:nth-child(2),.historyTable td:nth-child(3){grid-column:1}
+  .historyTable td:nth-child(3):empty{display:none}
+}
+/* Touch screens: show controls that otherwise wait for hover, and keep inputs at 16px so iOS does not zoom on focus. */
+@media(hover:none){
+  .rowEye,.groupEye{opacity:1;color:var(--faint)}
+  .search kbd,.paletteInput kbd,.paletteList kbd,.add kbd{display:none}
+  .rowMain{min-height:40px}
+  .group summary{padding-block:9px}
+}
+@media(pointer:coarse){
+  :is(input,select,textarea):not([type=color]):not([type=checkbox]):not([type=radio]){font-size:16px!important}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 @media print{body{background:white;color:black}.appShell,dialog{display:none!important}.printSheet{display:grid;grid-template-columns:1fr 1fr;gap:4mm;color:black;font:12pt Arial}.printSheet>div{border:1px dashed #888;padding:4mm;break-inside:avoid;display:grid;gap:2mm}.printSheet small{color:#333}}

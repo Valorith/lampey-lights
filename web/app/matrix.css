@@ -248,11 +248,15 @@
  .mxGridWrap{padding:0 12px 110px}
  .mxRowUse{display:none}
  .mxDock,.mxTrash{position:fixed;left:50%;translate:-50% 0;max-width:calc(100% - 24px)}
+ .mxDock,.mxTrash{bottom:calc(16px + env(safe-area-inset-bottom))}
+ .binless .mxBin{display:none}
 }
 @media(max-width:600px){
  .mxTools{width:100%}.mxTools .search{flex:1 1 100%;width:auto}
  .mxShell.detailed{--head:132px;--cell:112px;--rowh:66px}
  .mxRowIcon,.mxRowEdit,.mxRowName small,.mxCorner span+span{display:none}
  .mxDockHint{display:none}.mxDock>button:not(.tool){padding:0 9px}
+ .mxDock{flex-wrap:wrap;width:calc(100% - 24px);padding:8px 8px 8px 14px}
+ .mxDockText{flex:1 1 calc(100% - 80px)}.mxDock>.tool{order:1}.mxDock>button:not(.tool){order:2;flex:1 1 auto}
  .top nav button{padding-inline:5px}
 }

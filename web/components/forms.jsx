@@ -4,7 +4,7 @@ import {I} from "./ui-kit";
 import {fixtures,shapes,hardware,protocols,mounts,mountNames,palette,effects,isPixel,isSerial} from "../lib/show";
 export function Modal({title,close,children,className}){
  // showModal focuses the first control, which is the close button; move focus to the field or action the dialog is about.
- const ref=useRef(null);useEffect(()=>{const dlg=ref.current;dlg.showModal();const target=dlg.querySelector("[data-focus]")||(window.matchMedia("(hover:hover)").matches&&dlg.querySelector(".modal input:not([type=color]):not([type=number])"));target?.focus();return()=>dlg.close()},[]);
+ const ref=useRef(null);useEffect(()=>{const dlg=ref.current;dlg.showModal();const target=dlg.querySelector("[data-focus]")||(window.matchMedia("(hover:hover)").matches?dlg.querySelector(".modal input:not([type=color]):not([type=number])"):null);target?.focus();return()=>dlg.close()},[]);
  return <dialog ref={ref} className={className} aria-label={title} onCancel={e=>{e.preventDefault();close()}} onClick={e=>{if(e.target===ref.current)close()}}><section className="modal"><header><h2>{title}</h2><button type="button" className="tool" aria-label="Close dialog" onClick={close}><I n="x"/></button></header>{children}</section></dialog>
 }
 export function Field({label,children,wide}){return <label className={wide?"field wide":"field"}><span>{label}</span>{children}</label>}
@@ -28,7 +28,7 @@ export function FixtureForm({initial,design,commit,close,remove,existing}){
   if(f.shape==="run"&&f.points.length===1){f.points=[];f.mount=""}
   commit(f,placement==="pick"?pickMode:null)}
  return <Modal title={existing?"Edit fixture":"Add lights"} close={close}><form onSubmit={submit}><div className="fields">
- {field("Fixture name","name",null,{input:{required:true,autoFocus:true}})}{field("Area","zone",null,{input:{required:true,list:"zoneList"}})}
+ {field("Fixture name","name",null,{input:{required:true}})}{field("Area","zone",null,{input:{required:true,list:"zoneList"}})}
  <datalist id="zoneList">{[...new Set(design.fixtures.map(f=>f.zone))].map(z=><option key={z}>{z}</option>)}</datalist>
  {field("Light type","type",fixtures)}{field("Shape","shape",shapes,{select:{disabled:v.locked}})}
  <Field label="Placement"><select disabled={v.locked} value={placement} onChange={e=>{setPlacement(e.target.value);if(e.target.value==="mount"&&!v.mount)update("mount","porch.fascia")}}>{existing&&<option value="keep">Keep position</option>}<option value="mount">Use house feature</option><option value="pick">{v.shape==="run"?"Draw on model":"Place on model"}</option><option value="later">Place later</option></select></Field>
@@ -49,7 +49,7 @@ export function FixtureForm({initial,design,commit,close,remove,existing}){
 export function NetworkForm({initial,design,commit,remove,close,existing}){
  const {v,set,update,field,number}=useFields(initial);const serial=isSerial(v);
  return <Modal title={existing?"Edit network":"Add network"} close={close}><form onSubmit={e=>{e.preventDefault();commit(v)}}><div className="fields">
- {field("Network name","name",null,{input:{required:true,autoFocus:true}})}{<Field label="Protocol"><select value={v.protocol} onChange={e=>{const p=e.target.value;set(o=>({...o,protocol:p,speed:p==="lor"?57600:p==="pixlink"?8500000:p==="elor"?500000:0,source:p==="sacn"?"Ethernet interface":p==="dmx"?"USB DMX":p==="pixlink"?"Bridge output":"USB485-HS",bridge:p==="sacn"?"":o.bridge}))}}>{options(protocols)}</select></Field>}
+ {field("Network name","name",null,{input:{required:true}})}{<Field label="Protocol"><select value={v.protocol} onChange={e=>{const p=e.target.value;set(o=>({...o,protocol:p,speed:p==="lor"?57600:p==="pixlink"?8500000:p==="elor"?500000:0,source:p==="sacn"?"Ethernet interface":p==="dmx"?"USB DMX":p==="pixlink"?"Bridge output":"USB485-HS",bridge:p==="sacn"?"":o.bridge}))}}>{options(protocols)}</select></Field>}
  {field("Source / adapter","source",Object.fromEntries(["USB485-HS","USB485","USB485B","Director","Ethernet interface","USB DMX","Bridge output"].map(x=>[x,x])))}
  {serial&&<Field label="Link speed"><select value={v.speed} onChange={e=>update("speed",Number(e.target.value))}>{(v.protocol==="pixlink"?[4250000,8500000,17000000]:[19200,57600,115200,500000,1000000]).map(s=><option key={s} value={s}>{s/1000} kbps</option>)}</select></Field>}
  {v.protocol==="sacn"?<Field label="Channels per universe"><select value={v.slots} onChange={e=>update("slots",Number(e.target.value))}><option>510</option><option>512</option></select></Field>:field("Upstream bridge","bridge",deviceOptions(design.devices.filter(d=>["aurora","bridge"].includes(d.model)),"Direct connection"))}
@@ -58,7 +58,7 @@ export function NetworkForm({initial,design,commit,remove,close,existing}){
 export function DeviceForm({initial,design,commit,close,existing,remove}){
  const {v,update,field,number}=useFields(initial);const n=design.networks.find(x=>x.id===v.net),m=hardware[v.model];
  return <Modal title={existing?"Edit box":"Add a box"} close={close}><form onSubmit={e=>{e.preventDefault();commit({...v,unit:v.unit.toUpperCase()})}}><div className="fields">
- {field("Box label","name",null,{input:{required:true,autoFocus:true}})}{field("Hardware","model",hardware)}
+ {field("Box label","name",null,{input:{required:true}})}{field("Hardware","model",hardware)}
  {field("Network","net",Object.fromEntries(design.networks.map(n=>[n.id,n.name])))}{field(v.model==="rx"?"Paired transmitter":"Connected from","parent",deviceOptions(design.devices.filter(d=>d.id!==v.id&&(d.net===v.net||d.model==="computer")),"Network source"))}
  {m.ports>0&&isSerial(n)&&field("Base Unit ID (hex)","unit",null,{input:{required:true,pattern:"[A-Fa-f0-9]{2}",maxLength:2}})}
  {v.model==="generic"&&<Field label="Physical output count"><input type="number" min="1" max="128" required value={v.portCount??16} onChange={e=>update("portCount",Number(e.target.value))}/></Field>}{m.kind==="pixel"&&number("Configured pixels / port","pixelLimit",2048)}

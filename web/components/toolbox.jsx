@@ -21,7 +21,7 @@ export function Toolbox({initial,close,light,equipment,cable,plant,engine,dropPl
  const items=tab==="Lights"?lampPresets.map(v=>[v[0],v[1],v[4],()=>light(v),fixtures[v[2]]]):tab==="Equipment"?Object.entries(hardware).map(([k,v])=>[v.name,["computer","switch"].includes(k)?k:["rx","tx"].includes(k)?"radio":"box","#8ec5ff",()=>equipment(k),v.ports?v.ports+(v.kind==="pixel"?" pixel ports":v.kind==="dmx"?" addresses":" outputs"):""]):Object.entries(cableKinds).map(([k,v])=>[v.name,"cable",v.color,()=>cable(k),""]);
  const shown=items.filter(([n])=>n.toLowerCase().includes(search.trim().toLowerCase()));
  return <Modal title="Toolbox" close={close} className="wide toolbox">{tabs}
- <label className="search kitFilter"><I n="search" size={15}/><input autoFocus aria-label="Search toolbox" placeholder={"Find "+tab.toLowerCase()} value={search} onChange={e=>filter(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&shown[0]){e.preventDefault();shown[0][3]()}}}/></label>
+ <label className="search kitFilter"><I n="search" size={15}/><input aria-label="Search toolbox" placeholder={"Find "+tab.toLowerCase()} value={search} onChange={e=>filter(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&shown[0]){e.preventDefault();shown[0][3]()}}}/></label>
  <div className="kitGrid" key={tab}>{shown.map(([n,g,color,go,meta],i)=><button type="button" key={n} style={{"--c":color,"--n":Math.min(i,14)}} onClick={go}><i><Glyph name={g}/></i><span><b>{n}</b>{meta&&<small>{meta}</small>}</span></button>)}{!shown.length&&<p className="kitNone">Nothing matches “{search}”.</p>}</div></Modal>
 }
 const setValue=set=>(k,val)=>set(v=>({...v,[k]:val}));
