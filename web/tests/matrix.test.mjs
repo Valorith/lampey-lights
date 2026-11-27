@@ -124,7 +124,16 @@ test("The build sheet shows every output, chains shared pixel ports and escapes 
  assert.doesNotMatch(html,/Front <eave>/);
  assert.match(html,/>P01</);assert.match(html,/>P16</);
  assert.match(html,/class="chain"/);
- assert.match(html,/>Off</);
- // Overview, matrix, and one wiring page: 17 rows (16 outputs plus a chained strand) fit on one sheet.
- assert.equal((html.match(/class="page"/g)||[]).length,3);
+ assert.match(html,/Switched off/);
+ // Untouched free outputs collapse into one row; the switched-off output stays on its own.
+ assert.match(html,/>P09–15</);
+ // Overview, matrix, one wiring page and the lid cards.
+ assert.equal((html.match(/class="page"/g)||[]).length,4);
+ assert.match(html,/class="lid"/);
+});
+test("Build sheet notes wrap on word boundaries inside the controller faceplate",async()=>{
+ const {matrixDocument}=await import("../lib/matrix-print.js");
+ const s=design();s.devices[0]={...s.devices[0],notes:"Mounted inside garage on the left wall behind the shelving"};
+ const html=matrixDocument(s);
+ assert.match(html,/<tspan x="34" dy="0">Mounted inside garage on<\/tspan><tspan x="34" dy="15">the left wall behind the<\/tspan>/);
 });
