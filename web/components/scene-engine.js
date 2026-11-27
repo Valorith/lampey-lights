@@ -52,9 +52,9 @@ export function createScene(host,events){
  function placeBodies(design){if(!fitted||!design)return design;if(lastInput===design)return posed;lastInput=design;
   const devices=design.devices.map(d=>{if(!d.point)return d;const normal=d.normal||fitted.support(d.point);if(!normal)return d;
    const scale=d.scale??1,wall=Math.abs(normal[1])<.55;
-   return {...d,normal,point:fitted.footprint(d.point,normal,.41*scale,(wall?.38:.3)*scale,wall?.29*scale:0)}});
+   return {...d,normal,point:fitted.footprint(d.point,normal,.41*scale,(wall?.38:.3)*scale,wall?.29*scale:0,d.rotation)}});
   const fixtures=design.fixtures.map(f=>{if(f.shape==="run"||!f.points.length||f.plant)return f;
-   const normal=f.normal||fitted.support(f.points[0]);if(!normal)return f;const points=f.shape==="flood"?[fitted.footprint(f.points[0],normal,.22*floodScale(f),.22*floodScale(f))]:f.points;
+   const normal=f.normal||fitted.support(f.points[0]);if(!normal)return f;const points=f.shape==="flood"?[fitted.footprint(f.points[0],normal,.22*floodScale(f),.22*floodScale(f),0,f.rotation)]:f.points;
    return {...f,normal,points}});
   posed={...design,devices,fixtures};return posed;
  }
@@ -288,7 +288,8 @@ export function createScene(host,events){
   },
   preview:target=>events.propPreview(target),
   commit:(prop,row)=>events.propDrop(prop,row),
-  scale:(prop,factor)=>events.propScale(prop,factor)
+  scale:(prop,factor)=>events.propTransform(prop,"scale",factor),
+  rotate:(prop,degrees)=>events.propTransform(prop,"rotate",degrees)
  });
  surface.addEventListener("pointerdown",pointerDown,true);surface.addEventListener("pointerup",pointerUp);const cancel=()=>{down=null;drag=-1;controls.enabled=true};surface.addEventListener("pointercancel",cancel);
  const plantImages=new Map();

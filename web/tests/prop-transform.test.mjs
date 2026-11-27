@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {defaultFixture,sample,showSchema} from "../lib/show.js";
+import {defaultFixture,sample,showSchema,wirePoints} from "../lib/show.js";
 import {mountedFixture} from "../lib/garden.js";
-import {cablePoints,defaultCable,outputPoint} from "../lib/stage.js";
-import {moveProp,scaleProp,sceneProp,updateProp} from "../lib/prop-transform.js";
+import {aimAt,beamDirection,cablePoints,defaultCable,lampOrigin,outputPoint} from "../lib/stage.js";
+import {moveProp,rotateProp,scaleProp,sceneProp,updateProp} from "../lib/prop-transform.js";
 
 test("existing props start unlocked and locks survive a saved-show round trip",()=>{
  const design=showSchema.parse(sample());
@@ -15,8 +15,44 @@ test("existing props start unlocked and locks survive a saved-show round trip",(
   assert.equal(locked.row.locked,true);
   assert.equal(moveProp(locked,[5,1,0],[0,1,0]),locked.row);
   assert.equal(scaleProp(locked,1.5),locked.row);
+  assert.equal(rotateProp(locked,15),locked.row);
  }
  assert.equal(sceneProp(design,design.fixtures[0].id),null);
+});
+
+const closeVector=(a,b,tolerance=1e-8)=>assert.ok(Math.hypot(...a.map((n,i)=>n-b[i]))<tolerance);
+test("a mounted prop turns about its surface normal with cables and lenses attached",()=>{
+ const design=showSchema.parse(sample());
+ const base=[2,3,4],normal=[0,0,1];
+ const box={...design.devices[0],point:base,normal};
+ const turned=rotateProp({row:box},-270);
+ assert.equal(turned.rotation,90);
+ const at=outputPoint(box,3);
+ closeVector(outputPoint(turned,3),[base[0]-(at[1]-base[1]),base[1]+at[0]-base[0],at[2]]);
+ assert.equal(showSchema.parse({...design,devices:[turned]}).devices[0].rotation,90);
+ for(const shape of ["arch","tree","wreath","star","net","matrix","icicles","cane"]){
+  const f={...defaultFixture(),points:[base],normal,shape};
+  const original=wirePoints(f),rotated=wirePoints(rotateProp({row:f},90));
+  original.forEach(([x,y,z],i)=>closeVector(rotated[i],[base[0]-(y-base[1]),base[1]+x-base[0],z]));
+ }
+ const flood={points:[base],shape:"flood",normal,pitch:0,yaw:90,rotation:90};
+ closeVector(beamDirection(flood),[0,1,0]);
+ const target=lampOrigin(flood).map((v,i)=>v+[0,0,5][i]);
+ closeVector(beamDirection(aimAt(flood,target)),[0,0,1]);
+});
+
+test("rotating a planted tree moves its branch mount and keeps the far tree anchored",()=>{
+ let design=showSchema.parse(sample());
+ const [a,b]=design.plants;
+ const strand=mountedFixture({...defaultFixture(),plant:a.id,endPlant:b.id,dressing:"hang"},design.plants);
+ design=updateProp(design,"fixtures",strand);
+ const plant=rotateProp(sceneProp(design,a.id),-15);
+ assert.equal(plant.rotation,345);
+ assert.deepEqual(plant.point,a.point);
+ assert.equal(rotateProp({row:plant},15).rotation,0);
+ const result=updateProp(design,"plants",plant).fixtures.at(-1);
+ assert.notDeepEqual(result.points[0],strand.points[0]);
+ assert.deepEqual(result.points.at(-1),strand.points.at(-1));
 });
 
 test("tree scale preserves proportions and moving either tree moves its hanging lights",()=>{

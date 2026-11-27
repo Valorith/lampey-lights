@@ -32,6 +32,12 @@ export function moveProp({group,row},point,normal){
  return {...row,points:[point],normal,mount:"",normals:undefined};
 }
 
+export function rotateProp({row},degrees){
+ if(row.locked||!Number.isFinite(degrees)||degrees%360===0)return row;
+ const rotation=((row.rotation??0)+degrees)%360;
+ return {...row,rotation:rotation<0?rotation+360:rotation};
+}
+
 export function updateProp(design,group,row){
  const rows=design[group]||[],old=rows.find(r=>r.id===row.id);
  const next={...design,[group]:old?rows.map(r=>r===old?row:r):[...rows,row]};

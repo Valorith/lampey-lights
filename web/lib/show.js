@@ -1,6 +1,6 @@
 import {propertyPlants,species,dressings} from "./garden.js";
 import {z} from "zod";
-import {beamDefaults,cableKinds,floodScale,propPattern} from "./stage.js";
+import {beamDefaults,cableKinds,floodScale,mountRotation,propPattern} from "./stage.js";
 import {windowOutlines,windowNames} from "./window-mounts.js";
 import houseMounts from "./mounts.json" with {type:"json"};
 export const mounts={...houseMounts,...windowOutlines};
@@ -39,11 +39,12 @@ const pt=z.tuple([z.number().finite().min(-250).max(250),z.number().finite().min
 const num=(a,b)=>z.number().int().min(a).max(b);
 const choice=o=>z.string().refine(v=>Object.hasOwn(o,v));
 const net=z.object({id:key,name:str.min(1),protocol:choice(protocols),source:str,speed:num(0,17000000),bridge:str,output:num(1,6),slots:z.union([z.literal(510),z.literal(512)]),notes:str});
-const device=z.object({locked:z.boolean().default(false),scale:z.number().min(.25).max(4).default(1),id:key,name:str.min(1),model:choice(hardware),net:key,normal:pt.nullish(),portCount:num(1,128).optional(),offPorts:z.array(num(1,512)).max(512).default([]),parent:str,unit:z.string().regex(/^[0-9A-F]{2}$/),ip:str,rf:num(0,31),branch:num(1,6),universe:num(1,63999),pixelLimit:num(1,2048),splitEvenly:z.boolean().default(false),notes:str,point:pt.nullable()});
+const rotation=z.number().min(-360).max(360).default(0);
+const device=z.object({rotation,locked:z.boolean().default(false),scale:z.number().min(.25).max(4).default(1),id:key,name:str.min(1),model:choice(hardware),net:key,normal:pt.nullish(),portCount:num(1,128).optional(),offPorts:z.array(num(1,512)).max(512).default([]),parent:str,unit:z.string().regex(/^[0-9A-F]{2}$/),ip:str,rf:num(0,31),branch:num(1,6),universe:num(1,63999),pixelLimit:num(1,2048),splitEvenly:z.boolean().default(false),notes:str,point:pt.nullable()});
 const normal=z.tuple([z.number().min(-1.001).max(1.001),z.number().min(-1.001).max(1.001),z.number().min(-1.001).max(1.001)]);
 const light=z.object({locked:z.boolean().default(false),id:key,name:str.min(1),zone:str.min(1),type:choice(fixtures),shape:choice(shapes),mount:str,points:z.array(pt).min(1).max(160),color:z.string().regex(/^#[a-f0-9]{6}$/i),color2:z.string().regex(/^#[a-f0-9]{6}$/i),effect:choice(effects),count:num(1,2048),size:z.number().min(.1).max(20),brightness:num(1,100),device:str,port:num(1,512),offset:num(1,2048),universe:num(1,63999),slot:num(1,512),visible:z.boolean(),order:z.enum(["RGB","RBG","GRB","GBR","BRG","BGR","RGBW","GRBW"]),notes:z.string().max(800)});
 const plant=z.object({locked:z.boolean().default(false),id:key,name:str.min(1),kind:choice(species),point:pt,height:z.number().min(.2).max(22),width:z.number().min(.2).max(16),rotation:z.number().min(-360).max(360),visible:z.boolean()});
-const plannedLight=light.extend({normal:normal.nullish(),normals:z.array(normal.nullable()).max(160).optional(),autoCord:z.boolean().optional(),plant:str.optional(),endPlant:str.optional(),dressing:choice(dressings).optional(),branchA:num(0,7).optional(),branchB:num(0,7).optional(),turns:num(1,12).optional(),drop:z.number().min(0).max(8).optional(),points:z.array(pt).max(160),reference:str.default(""),state:z.enum(["Planned","Installed","Needs check","Spare"]).default("Planned"),yaw:z.number().min(-180).max(180).default(0),pitch:z.number().min(-90).max(90).default(beamDefaults.pitch),spread:z.number().min(6).max(110).default(beamDefaults.spread),reach:z.number().min(.5).max(35).default(beamDefaults.reach)});
+const plannedLight=light.extend({rotation,normal:normal.nullish(),normals:z.array(normal.nullable()).max(160).optional(),autoCord:z.boolean().optional(),plant:str.optional(),endPlant:str.optional(),dressing:choice(dressings).optional(),branchA:num(0,7).optional(),branchB:num(0,7).optional(),turns:num(1,12).optional(),drop:z.number().min(0).max(8).optional(),points:z.array(pt).max(160),reference:str.default(""),state:z.enum(["Planned","Installed","Needs check","Spare"]).default("Planned"),yaw:z.number().min(-180).max(180).default(0),pitch:z.number().min(-90).max(90).default(beamDefaults.pitch),spread:z.number().min(6).max(110).default(beamDefaults.spread),reach:z.number().min(.5).max(35).default(beamDefaults.reach)});
 const cable=z.object({id:key,name:str.min(1),kind:choice(cableKinds),output:num(1,512).optional(),normals:z.array(normal.nullable()).max(160).optional(),attachment:z.enum(["surface","free"]).default("surface"),color:z.string().regex(/^#[a-f0-9]{6}$/i),from:str,to:str,points:z.array(pt).min(2).max(160),style:z.enum(["corners","smooth","hanging"]),sag:z.number().min(0).max(8),width:z.number().min(.01).max(.18),visible:z.boolean(),notes:z.string().max(800)});
 export const showSchema=z.object({version:z.literal(1),name:str.trim().min(1),fixtures:z.array(plannedLight).max(300),devices:z.array(device).max(200),networks:z.array(net).max(80),plants:z.array(plant).max(150).default(propertyPlants),cables:z.array(cable).max(300).default([])}).superRefine((d,c)=>{
  const ids=[...d.fixtures,...d.devices,...d.networks,...d.plants,...d.cables].map(x=>x.id);
@@ -66,6 +67,12 @@ export const isSerial=n=>["lor","elor","pixlink"].includes(n?.protocol);
 export function wirePoints(f){
  if(!f.points.length)return [];
  if(f.shape==="run")return f.points;
+ const points=fixturePattern(f);
+ if(!f.rotation||f.shape==="flood")return points;
+ const base=f.points[0],turn=mountRotation(f.normal,f.rotation);
+ return points.map(p=>turn(p.map((v,i)=>v-base[i])).map((v,i)=>v+base[i]));
+}
+function fixturePattern(f){
  if(["matrix","icicles","net","cane"].includes(f.shape))return propPattern(f);
  const [x,y,z]=f.points[0], h=f.size, pts=[];
  if(f.shape==="flood"){

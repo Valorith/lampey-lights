@@ -45,9 +45,11 @@ export function propertySurface(meshes){
   const rise=reach-h.distance+clearance;
   return p.clone().addScaledVector(n,Math.max(0,rise));
  }
- function footprint(point,normal,width,depth,verticalOffset=0){
+ function footprint(point,normal,width,depth,verticalOffset=0,rotation=0){
   const p=vec(point),n=vec(normal).normalize(),wall=Math.abs(n.y)<.55;
-  const u=wall?up.clone().cross(n).normalize():n.clone().cross(new Vector3(0,0,1)).normalize(),v=n.clone().cross(u).normalize();
+  const u=wall?up.clone().cross(n).normalize():n.clone().cross(new Vector3(0,0,1)).normalize();
+  if(rotation)u.applyAxisAngle(n,rotation*Math.PI/180);
+  const v=n.clone().cross(u).normalize();
   const center=p.clone().addScaledVector(v,verticalOffset);let top=0;
   function clip(poly,axis,limit){const result=[];for(let i=0;i<poly.length;i++){
    const a=poly[i],b=poly[(i+1)%poly.length],da=a.clone().sub(center).dot(axis)-limit,db=b.clone().sub(center).dot(axis)-limit;

@@ -34,9 +34,12 @@ function equipment(d){
 }
 function floodHousing(f,dir){
  const group=new T.Group();group.position.copy(vector(lampOrigin(f)));group.scale.setScalar(floodScale(f));group.userData.entity=f.id;
+ const normal=vector(f.normal||[0,1,0]).normalize();
+ group.quaternion.setFromUnitVectors(up,normal);
+ group.rotateY(T.MathUtils.degToRad(f.rotation||0));
  const shell=finish("#324043"),metal=finish("#64787b");box(group,[.33,.032,.23],[0,-.206,0],metal);
  for(const sign of [-1,1])box(group,[.028,.17,.035],[sign*.156,-.119,0],metal);
- const head=new T.Group();head.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),dir);group.add(head);
+ const head=new T.Group();head.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),dir.clone().applyQuaternion(group.quaternion.clone().invert()));group.add(head);
  box(head,[.32,.24,.12],[0,0,0],shell);box(head,[.28,.20,.018],[0,0,.069],metal);
  const lens=new T.MeshBasicMaterial({color:f.color});box(head,[.24,.16,.012],[0,0,.083],lens);
  return {group,lens};
@@ -129,7 +132,7 @@ export function stageRenderer(scene,pathFor){
   const retained=new Map();
   for(const f of design.fixtures.filter(f=>f.shape==="flood"&&f.visible&&f.points.length)){
    const {group,lens}=floodHousing(f,vector(beamDirection(f)));props.add(group);
-   const key=JSON.stringify([lampOrigin(f),f.yaw,f.pitch,f.spread,f.reach,targets.length,gardenKey]);
+   const key=JSON.stringify([lampOrigin(f),beamDirection(f),f.spread,f.reach,targets.length,gardenKey]);
    let data=cached.get(key);
    if(!data){const origin=vector(lampOrigin(f)),r=f.reach??9;
     const near=surfaces.filter(m=>{if(!m.geometry.boundingSphere)m.geometry.computeBoundingSphere();const s=m.geometry.boundingSphere.clone().applyMatrix4(m.matrixWorld);return s.center.distanceTo(origin)<=r+s.radius});

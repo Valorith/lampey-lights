@@ -41,14 +41,15 @@ export function bindPropGestures(surface,viewport,actions){
  function cancel(event){if(drag&&event.pointerId===drag.pointer)clear()}
  function key(event){if(drag&&event.key==="Escape"){consume(event);clear()}}
  function wheel(event){
-  if(!event.ctrlKey||event.target!==surface||!event.cancelable)return;
+  if(!(event.ctrlKey||event.altKey)||event.target!==surface||!event.cancelable)return;
   const prop=actions.selected();if(!prop)return;
   // Reserve the wheel before the browser's page zoom or the camera's dolly handler.
   consume(event);
-  if(prop.row.locked||drag||!event.deltaY)return;
+  if(prop.row.locked||drag||!event.deltaY||(event.ctrlKey&&event.altKey))return;
   const units=event.deltaMode===1?16:event.deltaMode===2?viewport.clientHeight:1;
   const step=Math.max(-.24,Math.min(.24,event.deltaY*units/800));
-  actions.scale(prop,Math.exp(-step));
+  if(event.altKey)actions.rotate(prop,-step*100);
+  else actions.scale(prop,Math.exp(-step));
  }
  const abort=new AbortController(),options={signal:abort.signal,capture:true,passive:false};
  surface.addEventListener("pointerdown",down,options);surface.addEventListener("pointermove",move,options);

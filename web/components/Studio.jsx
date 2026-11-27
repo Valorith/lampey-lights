@@ -6,7 +6,7 @@ import {id,sample,showSchema,defaultNet,defaultDevice,defaultFixture,fixtures,ha
 import {review,patchText} from "../lib/patch";
 import {Modal,Field,FixtureForm,NetworkForm,DeviceForm} from "./forms";
 import {Toolbox,PlantForm,DressForm,CableForm} from "./toolbox";
-import {sceneProp,scaleProp,updateProp} from "../lib/prop-transform";
+import {sceneProp,scaleProp,rotateProp,updateProp} from "../lib/prop-transform";
 import {Controller} from "./controller";
 import {newPlant,mountedFixture,species} from "../lib/garden";
 import {defaultCable,sceneCables,cablePoints,cableKinds,routeLength,routedPoints,endpoints,aimAt,detachCables} from "../lib/stage";
@@ -21,7 +21,7 @@ const saveKind=s=>s==="Saved"?"ok":/Saving|Opening/.test(s)?"busy":s==="Saved on
 const Bulbs=()=><span className="bulbs" aria-hidden="true"><i/><i/><i/><i/><i/></span>;
 
 function Viewport({state,events,engine}){const host=useRef(null),handlers=useRef(events),latest=useRef(state);handlers.current=events;latest.current=state;
- useEffect(()=>{let cancel=false,instance;import("./scene-engine").then(({createScene})=>{if(cancel)return;instance=createScene(host.current,Object.fromEntries(["pick","move","place","anchor","ready","fail","propPreview","propDrop","propScale"].map(k=>[k,(...args)=>handlers.current[k](...args)])));engine.current=instance;instance.update(latest.current)}).catch(()=>handlers.current.fail("Could not start 3D view."));return()=>{cancel=true;instance?.dispose();engine.current=null}},[]);
+ useEffect(()=>{let cancel=false,instance;import("./scene-engine").then(({createScene})=>{if(cancel)return;instance=createScene(host.current,Object.fromEntries(["pick","move","place","anchor","ready","fail","propPreview","propDrop","propTransform"].map(k=>[k,(...args)=>handlers.current[k](...args)])));engine.current=instance;instance.update(latest.current)}).catch(()=>handlers.current.fail("Could not start 3D view."));return()=>{cancel=true;instance?.dispose();engine.current=null}},[]);
  useEffect(()=>{engine.current?.update(state)},[state,engine]);return <div className="sceneHost" ref={host}/>
 }
 
@@ -50,18 +50,18 @@ export default function Studio(){
  function upsert(group,row){if(group==="cables"&&row.inferred){const {inferred,...custom}=row;row=custom}store.change(updateProp(design,group,row))}
  const activeProp=sceneProp(design,sel);
  function toggleLock(){if(activeProp)upsert(activeProp.group,{...activeProp.row,locked:!activeProp.row.locked})}
- function propScale(prop,factor){
+ function propTransform(prop,operation,amount){
   store.change(current=>{
    const live=sceneProp(current,prop.row.id);
    if(!live)return current;
-   const row=scaleProp(live,factor);
+   const row=operation==="rotate"?rotateProp(live,amount):scaleProp(live,amount);
    return row===live.row?current:updateProp(current,live.group,row);
-  },"scale/"+prop.row.id);
+  },operation+"/"+prop.row.id);
  }
  function propDrop(prop,row){
   store.change(current=>sceneProp(current,prop.row.id)?.row===prop.row?updateProp(current,prop.group,row):current);
  }
- const lockButton=activeProp&&<button type="button" className="propLock" aria-label={activeProp.row.locked?"Unlock prop":"Lock prop"} title={activeProp.row.locked?"Unlock position and size":"Lock position and size"} onClick={toggleLock}><I n={activeProp.row.locked?"lock":"unlock"} size={15}/>{activeProp.row.locked?"Unlock":"Lock"}</button>;
+ const lockButton=activeProp&&<button type="button" className="propLock" aria-label={activeProp.row.locked?"Unlock prop":"Lock prop"} title={activeProp.row.locked?"Unlock prop transforms":"Lock prop transforms"} onClick={toggleLock}><I n={activeProp.row.locked?"lock":"unlock"} size={15}/>{activeProp.row.locked?"Unlock":"Lock"}</button>;
  function edit(row,over={}){dlg({kind:"fixture",v:row||{...defaultFixture(),name:"New strand",state:"Planned",...over},existing:!!row})}
  function net(n){dlg({kind:"network",v:n||defaultNet(),existing:!!n})}
  function box(d,netId){dlg({kind:"device",v:d||defaultDevice(netId||design.networks[0]?.id),existing:!!d})}
@@ -202,7 +202,7 @@ export default function Studio(){
   <main className="editor"><h1 className="srOnly">Property layout</h1>
   <section ref={viewport} data-mode={mode} className={"viewport "+(night?"night":"day")+(play?" playing":"")}>
    <div className="sky" aria-hidden="true"><i className="skyNight"/><i className="skyDay"/><i className="stars"/></div>
-   <Viewport state={sceneState} engine={engine} events={{propScale,propDrop,propPreview:target=>setDragPreview(target?{...target,base:design}:null),pick(v){pick(v)},anchor,ready:()=>setReady(true),fail:setError,place,move(i,p,normal){if(c&&mode==="cableEdit"){const points=cablePoints(c,design);points[i]=[p[0],p[1]+lift,p[2]];upsert("cables",{...c,points,normals:points.map((_,j)=>i===j?(lift?null:normal):c.normals?.[j]||null)})}else if(f){const points=f.points.slice();points[i]=p;upsert("fixtures",{...f,points,normal:f.shape!=="run"?normal:f.normal,normals:points.map((_,j)=>i===j?normal:f.normals?.[j]||null),mount:"",plant:undefined,endPlant:undefined,dressing:undefined})}}}}/>
+   <Viewport state={sceneState} engine={engine} events={{propTransform,propDrop,propPreview:target=>setDragPreview(target?{...target,base:design}:null),pick(v){pick(v)},anchor,ready:()=>setReady(true),fail:setError,place,move(i,p,normal){if(c&&mode==="cableEdit"){const points=cablePoints(c,design);points[i]=[p[0],p[1]+lift,p[2]];upsert("cables",{...c,points,normals:points.map((_,j)=>i===j?(lift?null:normal):c.normals?.[j]||null)})}else if(f){const points=f.points.slice();points[i]=p;upsert("fixtures",{...f,points,normal:f.shape!=="run"?normal:f.normal,normals:points.map((_,j)=>i===j?normal:f.normals?.[j]||null),mount:"",plant:undefined,endPlant:undefined,dressing:undefined})}}}}/>
    <div className="viewBar">
     <div className="barGroup">
      <Tool n="sidebar" label="Show scene panel" tip="Scene panel · [" pos="down-start" className="glassBtn panelBtn" action={openPanel}/>
@@ -234,7 +234,7 @@ export default function Studio(){
      <button data-tip="Esc" onClick={reset}>{mode==="edit"||mode==="cableEdit"?"Done":"Cancel"}</button>
     </>}</div>
    </div>
-   <div className="hint">{mode==="select"&&activeProp&&!activeProp.row.locked?"Drag prop to move · Ctrl + wheel to scale":"Drag to orbit · Scroll to zoom · Right-drag to pan"}</div>
+   <div className="hint">{mode==="select"&&activeProp&&!activeProp.row.locked?"Drag to move · Ctrl + wheel to scale · Alt + wheel to rotate":"Drag to orbit · Scroll to zoom · Right-drag to pan"}</div>
   </section></main></div>:
  tab==="Network"?<Network design={design} issues={issues} editNet={net} editBox={box} open={openRecord} locate={d=>{setWiring(true);begin(d,"box")}}/>:<Patch design={design} issues={issues} edit={edit} open={openRecord} setState={(fx,state)=>upsert("fixtures",{...fx,state})} historyAdd={historyAdd}/>}
  <input type="file" hidden ref={file} accept=".json,application/json" onChange={importFile}/>
