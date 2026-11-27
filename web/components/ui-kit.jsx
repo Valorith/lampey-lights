@@ -1,6 +1,8 @@
 import {useCallback,useEffect,useRef,useState} from "react";
 
 const paths={
+ matrix:"M3 4h18v16H3z M3 10h18 M9 4v16 M15 4v16",
+ settings:"M3 6h7m4 0h7 M3 12h12m4 0h2 M3 18h2m4 0h12 M10 4v4h4V4z M15 10v4h4v-4z M5 16v4h4v-4z",
  layout:"m12 2 9 5v10l-9 5-9-5V7z M3 7l9 5 9-5 M12 12v10",
  network:"M9 3h6v5H9z M12 8v4 M5 16v-4h14v4 M2 16h6v5H2z M16 16h6v5h-6z",
  patch:"M5 3h14v18H5z M8 7h8 M8 11h8 M8 15h4",

@@ -9,6 +9,8 @@ import {Toolbox,PlantForm,DressForm,CableForm} from "./toolbox";
 import {editRoutePoint} from "../lib/route-edit.js";
 import {sceneProp,scaleProp,rotateProp,updateProp} from "../lib/prop-transform";
 import {Controller} from "./controller";
+import {ChannelMatrix} from "./channel-matrix";
+import {applyPatch,planPatch} from "../lib/matrix";
 import {newPlant,mountedFixture,species} from "../lib/garden";
 import {defaultCable,sceneCables,cablePoints,cableKinds,measuredLength,cordLabel,endpoints,aimAt,detachCables} from "../lib/stage";
 import {Network,Patch,saveFile,exportPatch} from "./records";
@@ -18,7 +20,7 @@ import {CommandPalette,Shortcuts} from "./command-palette";
 import {DrawBar,PropBar,strandPresets,presetSpacing,toolKeys} from "./draw-bar";
 import {drawTools,toolDefaults,lightCount,seriesName,wallYaw} from "../lib/draw-tools";
 
-const tabs=[["Layout","layout"],["Network","network"],["Patch","patch"]];
+const tabs=[["Layout","layout"],["Network","network"],["Patch","patch"],["Matrix","matrix"]];
 const views=["Street","Street trees","Front","Driveway","Back stairs","Pool","Rear elevation","Overhead"];
 const saveKind=s=>s==="Saved"?"ok":/Saving|Opening/.test(s)?"busy":s==="Saved on device"?"local":"warn";
 const Bulbs=()=><span className="bulbs" aria-hidden="true"><i/><i/><i/><i/><i/></span>;
@@ -55,7 +57,7 @@ export default function Studio(){
  const setError=message=>toast(message,{kind:"error"});
  const removed=v=>toast("Removed "+v.name,{action:{label:"Undo",run:()=>store.undo()}});
  const close=()=>dlg(null);
- function upsert(group,row){if(group==="cables"&&row.inferred){const {inferred,...custom}=row;row=custom}store.change(updateProp(design,group,row))}
+ function upsert(group,row){if(group==="cables"&&row.inferred){const {inferred,...custom}=row;row=custom}const old=group==="fixtures"&&design.fixtures.find(f=>f.id===row.id);store.change(old&&(old.port!==row.port||old.device!==row.device)?applyPatch(design,row):updateProp(design,group,row))}
  const activeProp=sceneProp(design,sel);
  function toggleLock(){if(activeProp)upsert(activeProp.group,{...activeProp.row,locked:!activeProp.row.locked})}
  function propTransform(prop,operation,amount){
@@ -195,7 +197,7 @@ export default function Studio(){
   if(e.key==="Escape"){reset();pick("");setMobile(false);return}
   if(mod){if(k==="z"){e.preventDefault();e.shiftKey?redo():undo()}else if(k==="y"){e.preventDefault();redo()}else if(k==="d"&&tab==="Layout"&&mode==="select"&&(f||p)){e.preventDefault();duplicate()}return}
   if(e.altKey)return;
-  if(["1","2","3"].includes(e.key)&&!(tab==="Layout"&&mode==="draw")){setTab(tabs[e.key-1][0]);return}
+  if(["1","2","3","4"].includes(e.key)&&!(tab==="Layout"&&mode==="draw")){setTab(tabs[e.key-1][0]);return}
   if(e.key==="?"){dlg({kind:"shortcuts"});return}
   if(tab!=="Layout")return;
   const onControl=e.target.closest?.("button,a,summary");
@@ -212,7 +214,7 @@ export default function Studio(){
   if(run){e.preventDefault();run()}
  };
 
- const controllerProps=d&&{box:d,routes,design,issues,lockButton,save:v=>upsert("devices",{...d,name:v.name,model:v.model,unit:v.unit,net:v.net,ip:v.ip,portCount:v.portCount}),close:()=>{close();pick("")},edit:()=>box(d),move:()=>begin(d,"box"),details:()=>dlg({kind:"controller"}),route:routeOutput,editCable:c=>cableForm(c,true),assign:(id,port)=>{const fx=design.fixtures.find(f=>f.id===id);if(fx)upsert("fixtures",{...fx,device:d.id,port})},toggle:port=>{const ports=d.offPorts||[];upsert("devices",{...d,offPorts:ports.includes(port)?ports.filter(n=>n!==port):[...ports,port]})}};
+ const controllerProps=d&&{box:d,routes,design,issues,lockButton,save:v=>upsert("devices",{...d,name:v.name,model:v.model,unit:v.unit,net:v.net,ip:v.ip,portCount:v.portCount}),close:()=>{close();pick("")},edit:()=>box(d),move:()=>begin(d,"box"),details:()=>dlg({kind:"controller"}),route:routeOutput,editCable:c=>cableForm(c,true),assign:(id,port)=>{const result=planPatch(design,id,d.id,port);if(result.error)setError(result.error);else store.change(applyPatch(design,result.fixture))},toggle:port=>{const ports=d.offPorts||[];upsert("devices",{...d,offPorts:ports.includes(port)?ports.filter(n=>n!==port):[...ports,port]})}};
  const historyAdd=r=>edit(null,{name:r[1]||r[0],reference:r[0],zone:/porch|driveway/i.test(r[2])?r[2]:"Unsorted",notes:r[2],state:/bad|unknown|something plugged/i.test(r.join(" "))?"Needs check":"Planned",type:/pixie/i.test(r.join(" "))?"pixel":/floo[d t]|Box 28/i.test(r.join(" "))?"dc":"ac",shape:/floo[d t]|Box 28/i.test(r.join(" "))?"flood":/pixie arch/i.test(r.join(" "))?"arch":"run",points:[],color:/blue/i.test(r[1])?"#88bbff":/red/i.test(r[1])?"#ff7773":"#ffd394"});
  const modeText={draw:"Click along the surface to draw the strand",box:"Click a surface to place the equipment",plant:"Click the ground to place the planting",aim:"Click where the beam should land",cable:"Click to add bends along the route",cableEdit:"Drag a point to move it · drag a midpoint to add one · double-click to remove",edit:"Drag a point to move it · drag a midpoint to add one · double-click to remove",prop:"Click a surface to place the fixture"}[mode]||"Click a surface";
  const points=mode==="draw"?draft.length:mode==="cable"?cableDraft.length:null;
@@ -304,7 +306,7 @@ export default function Studio(){
    </div>
    <div className="hint">{mode==="select"&&activeProp&&!activeProp.row.locked?"Drag to move · Ctrl + wheel to scale · Alt + wheel to rotate":"Drag to orbit · Scroll to zoom · Right-drag to pan"}</div>
   </section></main></div>
- {tab==="Layout"?null:tab==="Network"?<Network design={design} issues={issues} editNet={net} editBox={box} open={openRecord} locate={d=>{setWiring(true);begin(d,"box")}}/>:<Patch routes={routes} design={design} issues={issues} edit={edit} open={openRecord} setState={(fx,state)=>upsert("fixtures",{...fx,state})} historyAdd={historyAdd}/>}
+ {tab==="Layout"?null:tab==="Matrix"?<ChannelMatrix key={store.id} design={design} issues={issues} change={store.change} editBox={box} editFixture={edit} addBox={()=>design.networks.length?box():net()} notify={(message,error)=>toast(message,{kind:error?"error":"success",id:"matrix-patch"})}/>:tab==="Network"?<Network design={design} issues={issues} editNet={net} editBox={box} open={openRecord} locate={d=>{setWiring(true);begin(d,"box")}}/>:<Patch routes={routes} design={design} issues={issues} edit={edit} open={openRecord} setState={(fx,state)=>upsert("fixtures",{...fx,state})} historyAdd={historyAdd}/>}
  <input type="file" hidden ref={file} accept=".json,application/json" onChange={importFile}/>
  {dialog?.kind==="palette"&&<CommandPalette items={palette()} close={close}/>}
  {dialog?.kind==="shortcuts"&&<Shortcuts close={close}/>}

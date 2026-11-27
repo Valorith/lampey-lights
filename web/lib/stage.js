@@ -52,7 +52,7 @@ export function devicePoint(d,u,v,w){const {origin,x,y,z}=deviceBasis(d);return 
 export function outputPoint(d,port=1){return devicePoint(d,((port-1)%4-1.5)*.083,.095+Math.floor(((port-1)%16)/4)*.043,.19)}
 export function connected(c,id,design){return [c.from,c.to].some(key=>key==="d/"+id||design.fixtures.some(f=>f.device===id&&key==="f/"+f.id))}
 export function cablePoints(c,design){const ends=endpoints(design);const pts=c.points.map(p=>[...p]);
- if(pts.length){const a=ends.find(e=>e.id===c.from),b=ends.find(e=>e.id===c.to);if(a)pts[0]=a.id.startsWith("d/")&&c.output?outputPoint(a.item,c.output):a.point;if(b)pts[pts.length-1]=b.point}return pts
+ if(pts.length){const a=ends.find(e=>e.id===c.from),b=ends.find(e=>e.id===c.to);if(a)pts[0]=a.id.startsWith("d/")&&c.output?outputPoint(a.item,c.output):a.point;if(b)pts[pts.length-1]=b.id.startsWith("d/")&&c.output?outputPoint(b.item,c.output):b.point}return pts
 }
 const mix=(a,b,t)=>a.map((n,i)=>n+(b[i]-n)*t);
 export function routedPoints(points,style,sag=.3){

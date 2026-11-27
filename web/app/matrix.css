@@ -1,0 +1,64 @@
+.appShell .top nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+.appShell .top nav::before{width:calc((100% - 6px)/4)}
+.mxPage{max-width:1320px}
+.mxPage h2{margin:0;font:650 1.12rem/1.25 var(--font-ui);letter-spacing:-.02em}
+.mxControls,.mxLoose header,.mxHead,.mxSelection,.mxPages label{display:flex;align-items:center;gap:10px}
+.mxControls{flex-wrap:wrap;margin-bottom:18px}
+.mxControls .search{flex:1 1 220px;max-width:400px}
+.mxControls select,.mxControls .search,.mxFilters{min-height:38px}
+.mxFilters{display:flex;margin-left:auto;padding:3px;border-radius:9px;background:var(--ink-1);border:1px solid var(--line)}
+.mxFilters button{border:0;background:transparent;min-height:30px;padding:4px 13px;color:var(--muted)}
+.mxFilters button[aria-pressed=true]{background:var(--ink-4);color:var(--amber-2)}
+.mxLoose{border:1px dashed var(--line-2);background:var(--ink-1);border-radius:12px;padding:13px 16px;margin-bottom:20px}
+.mxLoose header{color:var(--muted)}.mxLoose h2{font:650 .96rem var(--font-ui);color:var(--text)}
+.mxLoose header>span{font:500 .82rem var(--font-mono)}
+.mxTray,.mxOverflow>div{display:flex;gap:8px;flex-wrap:wrap;max-height:220px;overflow:auto;padding:3px;margin:8px -3px -3px}
+.mxTray .mxFixture,.mxOverflow .mxFixture{width:min(230px,100%)}
+.mxBank{border:1px solid var(--line-2);border-radius:14px;background:var(--ink-1);margin-bottom:20px;overflow:hidden}
+.mxHead{padding:15px 18px;gap:12px;flex-wrap:wrap;background:var(--ink-2);border-bottom:1px solid var(--line)}
+.mxBoxIcon{display:grid;place-items:center;color:var(--amber);background:var(--amber-wash);border-radius:9px;width:38px;height:38px}
+.mxIdentity{min-width:0;flex:1}.mxIdentity h2,.mxFixture strong,.mxSelection strong{overflow-wrap:anywhere}
+.mxIdentity small,.mxCapacity span,.mxFixture small,.mxChoices small{display:block;color:var(--muted);font-size:.8rem}
+.mxIdentity small{margin-top:2px}
+.mxCapacity{display:grid;gap:4px;min-width:85px}.mxCapacity span{font-family:var(--font-mono)}
+.mxCapacity meter{appearance:none;width:100%;height:4px;border:0;background:var(--ink-4);border-radius:8px}
+.mxCapacity meter::-webkit-meter-bar{background:var(--ink-4);border:0;height:4px;border-radius:8px}
+.mxCapacity meter::-webkit-meter-optimum-value{background:var(--amber);border-radius:8px}
+.mxCapacity meter::-moz-meter-bar{background:var(--amber)}
+.mxSettings{margin-left:4px}
+.mxGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line)}
+.mxOutput{background:var(--ink-1);padding:9px;min-width:0;min-height:84px;transition:background .16s,box-shadow .16s}
+.mxOutput.vacant{background:#0a0e17}
+.mxContact,.mxEmpty{width:100%;border:0;background:transparent;text-align:left}
+.mxContact{justify-content:space-between;min-height:28px;padding:2px 5px;color:var(--muted);font:580 .81rem var(--font-mono)}
+.mxContact span{display:inline-flex;gap:8px;align-items:center}
+.mxContact i{width:7px;height:7px;border-radius:50%;border:1px solid var(--faint)}
+.occupied .mxContact i{background:var(--pine);border-color:var(--pine)}
+.off .mxContact i{background:transparent;border-color:var(--berry)}.mxContact small{color:var(--berry)}
+.mxContact>.ico{opacity:.35}.mxOutput:hover .mxContact>.ico,.mxContact:focus-visible>.ico{opacity:1}
+.mxEmpty{justify-content:flex-start;min-height:42px;color:var(--faint);padding:5px 10px;font-weight:450}
+.mxFixture{display:flex;justify-content:flex-start;gap:9px;white-space:normal;text-align:left;cursor:grab;width:100%;min-height:43px;margin:2px 0;background:var(--ink-2);border-color:var(--line);padding:6px 9px}
+.mxFixture>i{width:4px;min-height:24px;align-self:stretch;background:var(--fixture);border-radius:5px;flex:none;opacity:.94}
+.mxFixture strong{font-size:.9rem;font-weight:650}.mxFixture span{min-width:0}
+.mxFixture small{font-size:.76rem}.mxFixture>.ico,.mxProblem,.mxOverflow>b{color:var(--berry)}
+.mxFixture>.ico{margin-left:auto}
+.mxFixture:hover{transform:translateY(-1px)}.mxFixture[aria-pressed=true]{border-color:var(--amber);background:var(--amber-wash)}
+.mxSelection{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 24px);z-index:6;background:#202b3e;box-shadow:0 4px 16px #0006;border:1px solid #ffc46b80;border-radius:10px;padding:8px 10px;min-width:0;flex-wrap:wrap}
+.mxSelection>span{color:var(--amber-2);font-size:.88rem;flex:1}
+.mxSelection button{min-height:30px}.mxSelection strong{max-width:100%}
+.mxOutput.over,.mxLoose.over,.mxUnpatch.over{background:#23362e;box-shadow:inset 0 0 0 2px var(--pine)}
+.mxOutput.blocked{background:#34222a;box-shadow:inset 0 0 0 2px var(--berry)}
+/* Give each physical output one continuous native drop target during a drag. */
+.mxDragging .mxOutput>*,.mxDragging .mxLoose>*{pointer-events:none}
+.page.mxPage{animation-fill-mode:backwards}
+.mxFixture.landed{animation:mxLand .65s var(--ease)}
+@keyframes mxLand{0%{transform:scale(.96);box-shadow:0 0 0 2px var(--pine)}60%{transform:scale(1.018)}100%{transform:none;box-shadow:0 0 0 0 transparent}}
+.mxPages{padding:10px 16px;border-top:1px solid var(--line)}.mxPages label{justify-content:flex-end;color:var(--muted)}
+.mxOverflow,.mxProblem{padding:12px 16px;background:#ff858509;border-bottom:1px solid var(--line)}
+.mxProblem{margin:0;display:flex;align-items:center;gap:8px}
+.mxChoices{display:grid;gap:3px;overflow:auto;max-height:52vh;padding:4px;margin:8px -4px 0}
+.mxChoices button{width:100%;justify-content:flex-start;white-space:normal;text-align:left}
+.mxChoices span{flex:1}.mxFind{margin-top:6px}
+.mxBank~.mxNoMatch{display:none}
+@media(max-width:820px){.top nav button{padding-inline:9px}.mxGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.mxGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.mxControls .search{max-width:none}.mxFilters{margin-left:0}.mxHead{gap:8px;padding:12px}.mxSettings span{display:none}.mxCapacity{min-width:55px}.mxOutput{padding:5px}.mxFixture{gap:5px;padding:6px}.mxSelection .lamp{display:none}.mxSelection>span{flex-basis:40%}.top nav button{padding-inline:5px}}
