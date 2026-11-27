@@ -54,6 +54,15 @@ const paths={
  bulb:"M9 18h6 M10 21h4 M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z",
  cable:"M2 16h4v4H2z M4 16v-3q0-4 4-4h7q4 0 4-4 M17 2h4v4h-4z",
  book:"M4 4h7a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4z M20 4h-5a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h5z",
+ trace:"M3 11 12 4l9 7 M6 9.5V20h12V9.5 M12 13.5h.01",
+ path:"M4 19 9 8l6 8 5-11 M4 19h.01 M9 8h.01 M15 16h.01 M20 5h.01",
+ line:"M5 19 19 5 M5 19h.01 M19 5h.01",
+ rect:"M4 6h16v12H4z",
+ circle:"M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0",
+ arc:"M3 19a9 9 0 0 1 18 0",
+ swag:"M2 7q5 11 10 0 M12 7q5 11 10 0",
+ free:"M3 17c3-9 5 4 8-3s4-8 6-3 2 6 4 3",
+ magnet:"M5 4v8a7 7 0 0 0 14 0V4h-4v8a3 3 0 0 1-6 0V4z M5 8h4 M15 8h4",
  route:"M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M8 17h6a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h6"
 };
 
@@ -79,8 +88,9 @@ export function usePref(name,initial){
 export function useToasts(){
  const [toasts,setToasts]=useState([]),timers=useRef(new Map());
  const dismiss=useCallback(key=>{clearTimeout(timers.current.get(key));timers.current.delete(key);setToasts(list=>list.filter(t=>t.key!==key))},[]);
- const toast=useCallback((message,{kind="info",action=null,ttl}={})=>{
-  if(!message)return;const key=kind+":"+message;
+ // A toast given an id replaces the previous one with that id instead of stacking.
+ const toast=useCallback((message,{kind="info",action=null,ttl,id}={})=>{
+  if(!message)return;const key=id||kind+":"+message;
   setToasts(list=>[...list.filter(t=>t.key!==key).slice(-3),{key,message,kind,action}]);
   clearTimeout(timers.current.get(key));timers.current.set(key,setTimeout(()=>dismiss(key),ttl??(kind==="error"?9000:action?6500:3200)));
  },[dismiss]);

@@ -32,7 +32,7 @@ const shortcuts=[
  ["General",[["Command palette","Ctrl K"],["Undo / redo","Ctrl Z / Ctrl Shift Z"],["Layout, Network, Patch","1  2  3"],["Shortcuts","?"],["Cancel or deselect","Esc"]]],
  ["Scene",[["Toolbox","T"],["Draw strand","D"],["Find in scene","/"],["Scene panel","["],["Edit selection","E"],["Duplicate selection","Ctrl D"],["Hide or show selection","H"],["Remove selection","Del"]]],
  ["View",[["Preview show","Space"],["Night or daylight","N"],["Labels","L"],["Wiring","W"],["Scale selected prop","Ctrl + wheel"],["Rotate selected prop","Alt + wheel"],["Frame selection","F"],["Reset camera","R"],["Zoom","+  −"]]],
- ["Drawing",[["Finish route","Enter"],["Remove last point","Backspace"]]]
+ ["Drawing",[["Pick a drawing tool","1 – 8"],["Finish a path","Enter"],["Remove last point","Backspace"],["Level, plumb or square","Shift"],["Ignore snapping","Alt"],["Resize a prop","[  ]"],["Turn a prop",",  ."]]]
 ];
 export function Shortcuts({close}){
  return <Modal title="Keyboard shortcuts" close={close} className="wide"><div className="shortcutGrid">{shortcuts.map(([title,rows])=><section key={title}><h3>{title}</h3>{rows.map(([label,keys])=><div key={label}><span>{label}</span><Kbd>{keys}</Kbd></div>)}</section>)}</div></Modal>
