@@ -328,7 +328,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
    setLanded([id,v.swap.other.id]);
   }else{
    change(applyPatch(design,v.fixture));
-   notify(g?f.name+" → "+[g.box.name+" · "+outputName(g,n),outputLabel(g.box,n),g.box.offPorts?.includes(n)&&"output off"].filter(Boolean).join(" · "):f.name+" unpatched",false,true);
+   notify(g?f.name+" → "+[g.box.name+" · "+outputName(g,n),outputLabel(g.box,n),g.box.offPorts?.includes(n)&&"output off"].filter(Boolean).join(" · "):f.name+" removed from its output",false,true);
    setLanded([id]);
   }
   pick("");
@@ -470,7 +470,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
    ...rows.slice(0,3).flatMap(f=>[
     {icon:"edit",label:"Edit "+f.name,run:()=>openFixture(f)},
     {icon:"move",label:"Move "+f.name,run:()=>pick(f.id)},
-    {icon:"cable",label:"Unpatch "+f.name,run:()=>unpatch(f),hint:rows.length===1?"Del":undefined}
+    {icon:"cable",label:rows.length>1?"Remove "+f.name+" from output":"Remove from output",run:()=>unpatch(f),hint:rows.length===1?"Del":undefined}
    ]),
    "-",
    {icon:"pin",label:tag?"Rename location…":"Label location…",run:()=>editLabel(key),hint:"F2"},
@@ -588,11 +588,11 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
   onClick={e=>{if(picked&&!e.target.closest("button,input,select,label,.mxCell,.mxRowHead,dialog"))pick("")}}>
   <style ref={crossRef}/>
   <aside ref={binRef} className="mxBin" data-drop={drag&&active?.device?BIN:undefined} aria-label="Fixtures">
-   <header className="mxBinHead"><h2>Fixtures</h2><span><b>{patched.length}</b>/{design.fixtures.length} patched</span></header>
-   {section("loose","Unpatched",loose,shownLoose,!design.fixtures.length?"No fixtures yet":loose.length?"No matches":<><I n="check" size={15}/>Everything is patched</>)}
-   {patched.length>0&&section("patched","Patched",patched,shownPatched,"No matches")}
+   <header className="mxBinHead"><h2>Fixtures</h2><span><b>{patched.length}</b>/{design.fixtures.length} assigned</span></header>
+   {section("loose","Unassigned",loose,shownLoose,!design.fixtures.length?"No fixtures yet":loose.length?"No matches":<><I n="check" size={15}/>Everything is assigned</>)}
+   {patched.length>0&&section("patched","Assigned",patched,shownPatched,"No matches")}
   </aside>
-  <div className="mxBinDrop" aria-hidden="true"><I n="cable" size={20}/>Drop to unpatch</div>
+  <div className="mxBinDrop" aria-hidden="true"><I n="cable" size={20}/>Drop to remove from output</div>
 
   <main ref={mainRef} className="mxMain">
    <header className="mxBar">
@@ -638,20 +638,20 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
 
   {active&&!drag&&<div className="mxDock" role="status">
    <i className="mxLamp" style={{"--fixture":active.color}}/>
-   <span className="mxDockText"><strong>{active.name}</strong><small>{where(active)||"Unpatched"}</small></span>
+   <span className="mxDockText"><strong>{active.name}</strong><small>{where(active)||"Unassigned"}</small></span>
    <span className="mxDockHint">Choose an output</span>
    <button type="button" onClick={()=>openFixture(active)}><I n="edit" size={14}/>Edit</button>
-   {active.device&&<button type="button" onClick={()=>unpatch(active)}><I n="cable" size={14}/>Unpatch</button>}
+   {active.device&&<button type="button" onClick={()=>unpatch(active)}><I n="cable" size={14}/>Remove from output</button>}
    <button type="button" className="tool" aria-label="Cancel" onClick={()=>pick("")}><I n="x" size={15}/></button>
   </div>}
 
-  {drag&&active?.device&&<div className={"mxTrash"+(aim===BIN?" aim":"")} data-drop={BIN}><I n="cable" size={16}/>Unpatch</div>}
+  {drag&&active?.device&&<div className={"mxTrash"+(aim===BIN?" aim":"")} data-drop={BIN}><I n="cable" size={16}/>Remove from output</div>}
 
   {ghostFx&&<div ref={ghostRef} className="mxGhost" aria-hidden="true" style={{width:drag.w,"--fixture":ghostFx.color}}>
    <div className="mxGhostCard"><i className="mxLamp"/><span><strong>{ghostFx.name}</strong><small>{where(ghostFx)||ghostFx.zone}</small></span><I n="grip" size={16}/></div>
    {verdict&&!verdict.home&&<div className={"mxVerdict"+(verdict.error?" bad":verdict.swap||aimOff?" swap":"")}>
     <I n={verdict.error?"alert":verdict.swap?"swap":verdict.unpatch?"cable":"check"} size={13}/>
-    <span>{verdict.error||(verdict.unpatch?"Unpatch":verdict.swap?(verdict.swap.replaced?"Replace ":"Swap with ")+verdict.swap.other.name:aimGroup&&[aimGroup.box.name+" · "+outputName(aimGroup,aimN),outputLabel(aimGroup.box,aimN),aimOff&&"output off"].filter(Boolean).join(" · "))}</span>
+    <span>{verdict.error||(verdict.unpatch?"Remove from output":verdict.swap?(verdict.swap.replaced?"Replace ":"Swap with ")+verdict.swap.other.name:aimGroup&&[aimGroup.box.name+" · "+outputName(aimGroup,aimN),outputLabel(aimGroup.box,aimN),aimOff&&"output off"].filter(Boolean).join(" · "))}</span>
    </div>}
   </div>}
 
