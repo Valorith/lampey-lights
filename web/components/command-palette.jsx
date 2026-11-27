@@ -31,7 +31,7 @@ export function CommandPalette({items,close}){
 const shortcuts=[
  ["General",[["Command palette","Ctrl K"],["Undo / redo","Ctrl Z / Ctrl Shift Z"],["Layout, Network, Patch","1  2  3"],["Shortcuts","?"],["Cancel or deselect","Esc"]]],
  ["Scene",[["Toolbox","T"],["Draw strand","D"],["Find in scene","/"],["Scene panel","["],["Edit selection","E"],["Duplicate selection","Ctrl D"],["Hide or show selection","H"],["Remove selection","Del"]]],
- ["View",[["Preview show","Space"],["Night or daylight","N"],["Labels","L"],["Wiring","W"],["Frame selection","F"],["Reset camera","R"],["Zoom","+  −"]]],
+ ["View",[["Preview show","Space"],["Night or daylight","N"],["Labels","L"],["Wiring","W"],["Scale selected prop","Ctrl + wheel"],["Frame selection","F"],["Reset camera","R"],["Zoom","+  −"]]],
  ["Drawing",[["Finish route","Enter"],["Remove last point","Backspace"]]]
 ];
 export function Shortcuts({close}){

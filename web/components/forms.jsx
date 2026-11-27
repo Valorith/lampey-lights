@@ -30,11 +30,11 @@ export function FixtureForm({initial,design,commit,close,remove,existing}){
  return <Modal title={existing?"Edit fixture":"Add lights"} close={close}><form onSubmit={submit}><div className="fields">
  {field("Fixture name","name",null,{input:{required:true,autoFocus:true}})}{field("Area","zone",null,{input:{required:true,list:"zoneList"}})}
  <datalist id="zoneList">{[...new Set(design.fixtures.map(f=>f.zone))].map(z=><option key={z}>{z}</option>)}</datalist>
- {field("Light type","type",fixtures)}{field("Shape","shape",shapes)}
- <Field label="Placement"><select value={placement} onChange={e=>{setPlacement(e.target.value);if(e.target.value==="mount"&&!v.mount)update("mount","porch.fascia")}}>{existing&&<option value="keep">Keep position</option>}<option value="mount">Use house feature</option><option value="pick">{v.shape==="run"?"Draw on model":"Place on model"}</option><option value="later">Place later</option></select></Field>
+ {field("Light type","type",fixtures)}{field("Shape","shape",shapes,{select:{disabled:v.locked}})}
+ <Field label="Placement"><select disabled={v.locked} value={placement} onChange={e=>{setPlacement(e.target.value);if(e.target.value==="mount"&&!v.mount)update("mount","porch.fascia")}}>{existing&&<option value="keep">Keep position</option>}<option value="mount">Use house feature</option><option value="pick">{v.shape==="run"?"Draw on model":"Place on model"}</option><option value="later">Place later</option></select></Field>
  {placement==="mount"?field("House feature","mount",mountNames):field("Installation","state",{"Planned":"Planned","Installed":"Installed","Needs check":"Needs check","Spare":"Spare"})}
  {v.shape==="flood"&&<>{number("Aim left / right (°)","yaw",180,-180)}{number("Aim elevation (°)","pitch",90,-90)}{number("Beam angle (°)","spread",110,6)}{number("Throw (m)","reach",35,.5,.1)}</>}
- {number(isPixel(v)?"Pixels":"Lamps","count",2048)}{v.shape==="run"?number("Brightness (%)","brightness",100):number("Prop height (m)","size",20,.1,.1)}
+ {number(isPixel(v)?"Pixels":"Lamps","count",2048)}{v.shape==="run"?number("Brightness (%)","brightness",100):field("Prop height (m)","size",null,{input:{type:"number",required:true,min:.1,max:20,step:"any",disabled:v.locked}})}
  </div><h3>Appearance</h3><div className="fields">{field("Effect","effect",effects)}{v.shape!=="run"&&number("Brightness (%)","brightness",100)}{isPixel(v)&&field("Color order","order",Object.fromEntries(["RGB","RBG","GRB","GBR","BRG","BGR","RGBW","GRBW"].map(x=>[x,x])))}
  <Field label="Light color" wide><div className="swatches">{palette.map(c=><button type="button" aria-label={"Choose "+c} aria-pressed={v.color===c} key={c} style={{background:c}} onClick={()=>update("color",c)}/>)}<input aria-label="Custom light color" type="color" value={v.color} onChange={e=>update("color",e.target.value)}/></div></Field>
  {v.effect==="alternate"&&field("Second color","color2",null,{input:{type:"color"}})}</div>

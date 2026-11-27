@@ -2,7 +2,7 @@ import {hardware} from "../lib/show";
 import {plantMesh} from "./plant-mesh.js";
 import {connected,controllerCords,sceneCables,deviceBasis} from "../lib/stage.js";
 import * as T from "three";
-import {beamDefaults,beamDirection,lampOrigin,cablePoints,routedPoints} from "../lib/stage.js";
+import {beamDefaults,beamDirection,floodScale,lampOrigin,cablePoints,routedPoints} from "../lib/stage.js";
 
 const up=new T.Vector3(0,1,0);
 const vector=p=>new T.Vector3(...p);
@@ -30,10 +30,10 @@ function equipment(d){
   else for(let i=0;i<(radio?1:2);i++)box(group,[.068,.07,.035],[(i-(radio?0:.5))*.12,.11,.18],dark);
   if(radio)mesh(group,new T.CylinderGeometry(.012,.019,.30,7),dark,[w*.33,h+.14,0]);
  }
- group.userData.entity=d.id;return group;
+ group.scale.setScalar(d.scale??1);group.userData.entity=d.id;return group;
 }
 function floodHousing(f,dir){
- const group=new T.Group();group.position.copy(vector(lampOrigin(f)));group.userData.entity=f.id;
+ const group=new T.Group();group.position.copy(vector(lampOrigin(f)));group.scale.setScalar(floodScale(f));group.userData.entity=f.id;
  const shell=finish("#324043"),metal=finish("#64787b");box(group,[.33,.032,.23],[0,-.206,0],metal);
  for(const sign of [-1,1])box(group,[.028,.17,.035],[sign*.156,-.119,0],metal);
  const head=new T.Group();head.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),dir);group.add(head);
@@ -129,7 +129,7 @@ export function stageRenderer(scene,pathFor){
   const retained=new Map();
   for(const f of design.fixtures.filter(f=>f.shape==="flood"&&f.visible&&f.points.length)){
    const {group,lens}=floodHousing(f,vector(beamDirection(f)));props.add(group);
-   const key=JSON.stringify([f.points[0],f.yaw,f.pitch,f.spread,f.reach,targets.length,gardenKey]);
+   const key=JSON.stringify([lampOrigin(f),f.yaw,f.pitch,f.spread,f.reach,targets.length,gardenKey]);
    let data=cached.get(key);
    if(!data){const origin=vector(lampOrigin(f)),r=f.reach??9;
     const near=surfaces.filter(m=>{if(!m.geometry.boundingSphere)m.geometry.computeBoundingSphere();const s=m.geometry.boundingSphere.clone().applyMatrix4(m.matrixWorld);return s.center.distanceTo(origin)<=r+s.radius});

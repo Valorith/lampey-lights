@@ -1,3 +1,5 @@
+import {bindPropGestures} from "./prop-gestures.js";
+import {sceneProp,moveProp} from "../lib/prop-transform.js";
 import {fitCord} from "../lib/cord-route.js";
 import {propertySurface} from "../lib/surface-fit.js";
 import {clearWindowTrim,guideNormal} from "../lib/window-mounts.js";
@@ -8,7 +10,7 @@ import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import {wirePoints,mounts,mountNames} from "../lib/show";
 import {stageRenderer} from "./stage-renderer";
 import {plantMesh} from "./plant-mesh.js";
-import {routeLength,sceneCables,beamDirection,lampOrigin,cablePoints,routedPoints} from "../lib/stage";
+import {routeLength,sceneCables,beamDirection,floodScale,lampOrigin,cablePoints,routedPoints} from "../lib/stage";
 
 const vec=p=>new T.Vector3(...p);
 const views={"Street trees":[[-6.7,3.4,23],[-6.6,2.4,8.5]],Street:[[12.4,6.8,22.1],[0,2,-2.4]],Front:[[0,3.6,24],[0,2.5,-1]],Driveway:[[23,5.1,5.5],[2,1,-4]],"Back stairs":[[7.25,1.48,-8.68],[.94,.98,-9.42]],Pool:[[13.5,10,-29.5],[0,1,-10]],"Rear elevation":[[.7,2.3,-33],[.4,2.05,-9.8]],Overhead:[[0,35,-3],[0,0,-3]]};
@@ -17,7 +19,7 @@ const onBuilding=f=>f?.shape==="run"&&!f.plant;
 const mountPoint=(f,p)=>onBuilding(f)?clearWindowTrim(p):p;
 function samples(f,path){
  const pts=path.map(vec);if(pts.length<=1)return pts;
- if(f.shape==="flood")return [vec(lampOrigin(f)).addScaledVector(vec(beamDirection(f)),.09)];
+ if(f.shape==="flood")return [vec(lampOrigin(f)).addScaledVector(vec(beamDirection(f)),.09*floodScale(f))];
  const dist=[0];for(let i=1;i<pts.length;i++)dist.push(dist[i-1]+pts[i].distanceTo(pts[i-1]));
  const count=f.shape==="flood"?1:Math.min(f.count,240);let s=1;
  return Array.from({length:count},(_,i)=>{const t=dist.at(-1)*i/Math.max(1,count-1);while(s<pts.length-1&&dist[s]<t)s++;const p=pts[s-1].clone().lerp(pts[s],(t-dist[s-1])/(dist[s]-dist[s-1]||1));return onBuilding(f)?vec(clearWindowTrim(p.toArray())):p})
@@ -46,18 +48,24 @@ export function createScene(host,events){
  const ray=new T.Raycaster();
  let lastWarning="";const blockedRoutes=new Set();
  let fitted=null,cacheDesign=null,cache=new Map(),lastInput=null,posed=null,previewPath=[];
+ const strandFits=new WeakMap(),cordFits=new Map();
  function placeBodies(design){if(!fitted||!design)return design;if(lastInput===design)return posed;lastInput=design;
   const devices=design.devices.map(d=>{if(!d.point)return d;const normal=d.normal||fitted.support(d.point);if(!normal)return d;
-   return {...d,normal,point:fitted.footprint(d.point,normal,.41,Math.abs(normal[1])<.55?.38:.3,Math.abs(normal[1])<.55?.29:0)}});
+   const scale=d.scale??1,wall=Math.abs(normal[1])<.55;
+   return {...d,normal,point:fitted.footprint(d.point,normal,.41*scale,(wall?.38:.3)*scale,wall?.29*scale:0)}});
   const fixtures=design.fixtures.map(f=>{if(f.shape==="run"||!f.points.length||f.plant)return f;
-   const normal=f.normal||fitted.support(f.points[0]);if(!normal)return f;const points=f.shape==="flood"?[fitted.footprint(f.points[0],normal,.22,.22)]:f.points;
+   const normal=f.normal||fitted.support(f.points[0]);if(!normal)return f;const points=f.shape==="flood"?[fitted.footprint(f.points[0],normal,.22*floodScale(f),.22*floodScale(f))]:f.points;
    return {...f,normal,points}});
   posed={...design,devices,fixtures};return posed;
  }
  function cached(key,design,build){if(design!==cacheDesign){cacheDesign=design;cache.clear()}if(!cache.has(key))cache.set(key,build());return cache.get(key)}
  function fixturePath(f){return cached("f/"+f.id,state.design,()=>{
   const raw=wirePoints(f);if(!fitted||f.plant||!raw.length)return raw;
-  if(f.shape==="run"){const normal=guideNormal(f.mount);const path=fitted.route(raw,{normals:normal?raw.map(()=>normal):f.normals,window:true});if(path.obstructed){blockedRoutes.add(f.name);return []}return path}
+  if(f.shape==="run"){
+   let path=strandFits.get(f);
+   if(!path){const normal=guideNormal(f.mount);path=fitted.route(raw,{normals:normal?raw.map(()=>normal):f.normals,window:true});strandFits.set(f,path)}
+   if(path.obstructed){blockedRoutes.add(f.name);return []}return path
+  }
   if(!f.normal||f.shape==="flood")return raw;
   const n=vec(f.normal),anchor=vec(f.points[0]),min=Math.min(...raw.map(p=>vec(p).sub(anchor).dot(n)));
   return raw.map(v=>fitted.seat(vec(v).addScaledVector(n,Math.max(0,.026-min)),n,0).toArray());
@@ -69,9 +77,15 @@ export function createScene(host,events){
   return {raw,targetNormal};
  }
  function cordPath(c,design){return cached("c/"+c.id,design,()=>{const {raw,targetNormal}=terminals(c,design);
-  const ordinary=routedPoints(raw,c.style,c.sag);
-  if(!fitted||c.attachment==="free")return ordinary;
-  const path=fitCord(fitted,raw,c,targetNormal);if(path.obstructed){if(!c.inferred)blockedRoutes.add(c.name);return []}
+  if(!fitted||c.attachment==="free")return routedPoints(raw,c.style,c.sag);
+  const key=JSON.stringify([raw,targetNormal,c.style,c.sag,c.width,c.normals,c.inferred]);
+  let entry=cordFits.get(c.id);
+  if(entry?.key!==key){entry={key,path:fitWire(c,raw,targetNormal)};cordFits.set(c.id,entry)}
+  if(entry.path.obstructed){if(!c.inferred)blockedRoutes.add(c.name);return []}
+  return entry.path;
+ })}
+ function fitWire(c,raw,targetNormal){
+  const path=fitCord(fitted,raw,c,targetNormal);if(path.obstructed)return path;
   if(c.style==="hanging"){const drape=[];for(let i=1;i<path.length;i++){
    const run=routedPoints([path[i-1],path[i]],"hanging",c.sag);
    for(let j=i===1?0:1;j<run.length;j++){const t=j/(run.length-1),straight=path[i-1][1]*(1-t)+path[i][1]*t;
@@ -83,7 +97,7 @@ export function createScene(host,events){
    const a=vec(curve[i-1]),b=vec(curve[i]),v=b.clone().sub(a),length=v.length();
    if(length>.0001&&(fitted.cast(a,v.divideScalar(length),length)||fitted.nearest(b,r)))return path;
   }return curve;
- })}
+ }
  const stage=stageRenderer(scene,cordPath);
  function screen(p){const v=p.clone().project(cam);return {x:(v.x+1)*w/2,y:(1-v.y)*h/2,z:v.z}}
  let ghost=null,ghostPlant=null,ghostRoot=null;
@@ -91,17 +105,17 @@ export function createScene(host,events){
   if(ghost){scene.remove(ghost);for(const m of ghost.children){m.geometry.dispose();m.material.dispose()}}
   ghost=null;ghostPlant=null;ghostRoot=null;invalidate();
  }
- function lawnAt(ev){
+ function propertyHit(ev,offset={x:0,y:0}){
   const rect=surface.getBoundingClientRect();
   if(!rect.width||!rect.height||!host.contains(document.elementFromPoint(ev.clientX,ev.clientY)))return null;
-  const x=(ev.clientX-rect.left)/rect.width,y=(ev.clientY-rect.top)/rect.height;
+  const x=(ev.clientX-rect.left+offset.x)/rect.width,y=(ev.clientY-rect.top+offset.y)/rect.height;
   if(x<0||x>1||y<0||y>1)return null;
   cam.updateMatrixWorld();
   ray.setFromCamera({x:2*x-1,y:1-2*y},cam);
-  const hit=ray.intersectObjects(pickMeshes,false).find(h=>h.object.userData.placement_surface!==false);
-  if(!hit||!(hit.object.material?.name==="Lawn"||/^graded[ _]lawn$/i.test(hit.object.name)))return null;
-  return hit.point.toArray();
+  return ray.intersectObjects(pickMeshes,false).find(h=>h.object.userData.placement_surface!==false);
  }
+ function isLawn(hit){return hit&&(hit.object.material?.name==="Lawn"||/^graded[ _]lawn$/i.test(hit.object.name))}
+ function lawnAt(ev){const hit=propertyHit(ev);return isLawn(hit)?hit.point.toArray():null}
  function previewPlant(plant,ev){
   if(ghostPlant?.id!==plant.id){clearPlantPreview();ghostPlant=plant}
   if(!gl&&!plantImages.has(plant.kind)){
@@ -161,6 +175,7 @@ export function createScene(host,events){
  function rebuild(){
   depthCache=null;if(cacheDesign!==state.design)blockedRoutes.clear();
   wires=state.design?sceneCables(state.design):[];
+  const wireIds=new Set(wires.map(c=>c.id));for(const id of cordFits.keys())if(!wireIds.has(id))cordFits.delete(id);
   if(state.design)stage.sync(state.design,pickMeshes,!!ctx);
   if(bulbs){scene.remove(bulbs);bulbs.geometry.dispose();mat.dispose()}
   runs=(state.design?.fixtures||[]).filter(f=>f.visible&&f.points.length).map(f=>({f,pts:samples(f,fixturePath(f)),off:state.design.devices.find(d=>d.id===f.device)?.offPorts?.includes(f.port)}));
@@ -191,6 +206,11 @@ export function createScene(host,events){
   }
   function line(points,color,dash=[]){if(!points.length)return;ink.strokeStyle=color;ink.lineWidth=1.6;ink.setLineDash(dash);ink.beginPath();points.forEach((p,i)=>{const v=screen(vec(p));if(i)ink.lineTo(v.x,v.y);else ink.moveTo(v.x,v.y)});ink.stroke();ink.setLineDash([])}
   function dot(p,color,r){const v=screen(vec(p));ink.beginPath();ink.fillStyle=color;ink.arc(v.x,v.y,r,0,Math.PI*2);ink.fill()}
+  const selectedProp=state.mode==="select"&&sceneProp(state.design,state.sel);
+  if(selectedProp&&!selectedProp.row.locked){
+   const base=screen(vec(selectedProp.point));
+   if(base.z>=-1&&base.z<=1){ink.beginPath();ink.arc(base.x,base.y,6,0,Math.PI*2);ink.fillStyle="#13202c";ink.fill();ink.strokeStyle="#ffe097";ink.lineWidth=2;ink.stroke()}
+  }
   if(ghostRoot){
    const [x,y,z]=ghostRoot,r=ghostPlant.width*.5;
    line(Array.from({length:41},(_,i)=>[x+r*Math.sin(i*Math.PI/20),y+.025,z+r*Math.cos(i*Math.PI/20)]),"#c6e4a1",[4,3]);
@@ -235,11 +255,41 @@ export function createScene(host,events){
   if(Math.hypot(e.clientX-before[0],e.clientY-before[1])>6||e.button!==0)return;
   if(["draw","prop","box","relocate","aim","cable","plant"].includes(state.mode)){if(hit.point)events.place(hit.point,hit.normal);return}
   if(state.mode==="edit"||state.mode==="cableEdit")return;
-  const label=labels.find(l=>Math.abs(l.x-hit.x)<l.w/2&&hit.y>=l.y&&hit.y<=l.y+21);
-  const point=projection.filter(p=>Math.hypot(p.x-hit.x,p.y-hit.y)<10).sort((a,b)=>a.z-b.z)[0];
-  const object=stage.pick(ray);
-  if(label)events.pick(label.id);else if(point&&object&&state.design?.plants?.some(p=>p.id===object.id))events.pick(point.id);else if(object&&object.distance<=hit.distance+.08)events.pick(object.id);else if(point)events.pick(point.id)
+  const id=pickedId(hit);if(id)events.pick(id);
  }
+ function pickedId(hit){
+  const selected=sceneProp(state.design,state.sel);
+  if(selected){const base=screen(vec(selected.point));if(Math.hypot(hit.x-base.x,hit.y-base.y)<11)return selected.row.id}
+  const label=labels.find(l=>Math.abs(l.x-hit.x)<l.w/2&&hit.y>=l.y&&hit.y<=l.y+21);
+  if(label)return label.id;
+  const point=projection.filter(p=>Math.hypot(p.x-hit.x,p.y-hit.y)<10&&p.z>=-1&&p.z<=1).sort((a,b)=>a.z-b.z)[0];
+  const object=stage.pick(ray);
+  if(point&&object&&state.design?.plants?.some(p=>p.id===object.id))return point.id;
+  if(object&&object.distance<=hit.distance+.08)return object.id;
+  return point?.id;
+ }
+ const gestures=bindPropGestures(surface,host.parentElement,{
+  selected:()=>state.mode==="select"?sceneProp(state.savedDesign,state.sel):null,
+  grab(ev){
+   if(!model||state.mode!=="select")return null;
+   const hit=resolveHit(ev),id=pickedId(hit),prop=sceneProp(state.savedDesign,id);
+   if(!prop||prop.row.locked)return null;
+   const shown=sceneProp(state.design,id),base=screen(vec(shown.point));
+   tween=null;return {prop,offset:{x:base.x-hit.x,y:base.y-hit.y}};
+  },
+  select:id=>events.pick(id),
+  place({prop,offset},ev){
+   if(state.mode!=="select"||sceneProp(state.savedDesign,prop.row.id)?.row!==prop.row)return null;
+   const hit=propertyHit(ev,offset);if(!hit)return null;
+   if(prop.group==="plants")return isLawn(hit)?moveProp(prop,hit.point.toArray()):null;
+   const normal=hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+   if(normal.dot(ray.ray.direction)>0)normal.negate();
+   return moveProp(prop,hit.point.clone().addScaledVector(normal,.045).toArray(),normal.toArray());
+  },
+  preview:target=>events.propPreview(target),
+  commit:(prop,row)=>events.propDrop(prop,row),
+  scale:(prop,factor)=>events.propScale(prop,factor)
+ });
  surface.addEventListener("pointerdown",pointerDown,true);surface.addEventListener("pointerup",pointerUp);const cancel=()=>{down=null;drag=-1;controls.enabled=true};surface.addEventListener("pointercancel",cancel);
  const plantImages=new Map();
  function movePreview(e){if(state.mode==="plant"&&state.plant&&!down&&e.pointerType!=="touch")previewPlant(state.plant,e)}
@@ -247,6 +297,6 @@ export function createScene(host,events){
  surface.addEventListener("pointermove",movePreview);surface.addEventListener("pointerleave",leavePreview);
  const visibility=()=>{if(!document.hidden)invalidate()};document.addEventListener("visibilitychange",visibility);window.addEventListener("focus",visibility);
  return {previewPlant,clearPlantPreview,lawnAt,canRoute(row,group){if(!fitted||!state.design)return true;if(group==="fixtures"&&row.shape==="run"&&!row.plant&&row.points.length>1){const n=guideNormal(row.mount);return !fitted.route(row.points,{normals:n?row.points.map(()=>n):row.normals,window:true}).obstructed}if(group==="cables"&&row.attachment!=="free")return !fitted.route(terminals(row,state.design).raw,{radius:row.width/2,normals:row.normals}).obstructed;return true},length(id){const p=cache.get("c/"+id)||cache.get("f/"+id);return p?routeLength(p):null},update(s){if(state.mode==="plant"&&s.mode!=="plant")clearPlantPreview();const design=placeBodies(s.design),refresh=design!==state.design||s.night!==state.night;const preview=s.draft!==state.draft||refresh;state={...s,design};if(preview){const pts=s.draft||[];previewPath=pts.length>=2&&fitted&&s.routeStyle!=="hanging"?fitted.route(pts,{radius:s.mode==="cable"?.02:0,window:s.mode==="draw"}):routedPoints(pts,s.routeStyle||"corners",s.routeSag)}if(refresh)rebuild();else invalidate()},preset,focus,zoom(f){const offset=cam.position.clone().sub(controls.target);offset.setLength(Math.min(controls.maxDistance,Math.max(controls.minDistance,offset.length()*f)));fly(controls.target.clone().add(offset),controls.target.clone(),220)},
- dispose(){disposed=true;cancelAnimationFrame(raf);observer.disconnect();controls.dispose();stage.dispose();document.removeEventListener("visibilitychange",visibility);window.removeEventListener("focus",visibility);scene.traverse(o=>{o.geometry?.dispose();for(const m of [].concat(o.material||[]))m.dispose()});gl?.dispose();host.replaceChildren()}}
+ dispose(){disposed=true;gestures();cancelAnimationFrame(raf);observer.disconnect();controls.dispose();stage.dispose();document.removeEventListener("visibilitychange",visibility);window.removeEventListener("focus",visibility);scene.traverse(o=>{o.geometry?.dispose();for(const m of [].concat(o.material||[]))m.dispose()});gl?.dispose();host.replaceChildren()}}
 }
 

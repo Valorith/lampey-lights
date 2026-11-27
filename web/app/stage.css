@@ -68,6 +68,9 @@
 .ctlCable i{display:inline-block;height:4px;width:18px;border-radius:2px}
 .ctlIssue{color:var(--amber)}
 .viewport:has(.boxPopover) .viewBar{z-index:2}
+.viewport[data-prop-drag=moving] .sceneCanvas{cursor:grabbing}
+.viewport[data-prop-drag=invalid] .sceneCanvas{cursor:not-allowed}
+.viewport[data-prop-drag] .boxPopover{pointer-events:none;opacity:0}
 @media(max-width:650px){.kitGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.kitGrid button{padding:7px;gap:9px}.kitGrid i{width:32px;height:32px}.kitTabs button .ico{display:none}.boxPopover{width:250px;padding:10px}.boxPopover .ctlPatch{max-height:96px}.ctlFields{margin:6px 0;gap:5px}.controllerFull .ctlFields{grid-template-columns:1fr 1fr}}
 .gardenCatalog{position:fixed;z-index:35;left:12px;top:74px;width:min(348px,calc(100vw - 24px));max-height:calc(100dvh - 90px);display:flex;flex-direction:column;overflow:hidden;padding:14px;border-radius:16px;border:1px solid var(--line-2);background:var(--ink-2);color:var(--text);box-shadow:var(--shadow)}
 .gardenCatalog.dragging{opacity:0;pointer-events:none}

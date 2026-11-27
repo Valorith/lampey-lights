@@ -6,10 +6,11 @@ async function remote(path,opts){const r=await fetch("/api/projects"+path,opts);
 export function useProjects(){
  const [view,render]=useState(0),[list,setList]=useState([]),[message,setMessage]=useState("Opening…");
  const current=useRef(null),records=useRef(new Map()),sequence=useRef(0),past=useRef([]),future=useRef([]),active=useRef(true);
+ const lastEdit=useRef(null);
  const bump=()=>{if(active.current)render(v=>v+1)};
  function persist(r){try{const data=read();data[r.id]={id:r.id,revision:r.revision,design:r.design,dirty:r.dirty,conflict:r.conflict};localStorage.setItem(key,JSON.stringify(data));return true}catch{return false}}
  function refresh(){return remote("").then(rows=>{if(active.current)setList(rows)}).catch(()=>{})}
- function select(r){if(!r.design.plants||!r.design.cables)r.design=showSchema.parse(r.design);current.current=r;records.current.set(r.id,r);past.current=[];future.current=[];try{localStorage.setItem(key+".last",r.id)}catch{}setMessage(r.conflict?"Save a copy to keep edits":r.dirty?"Saved on device":"Saved");bump();if(r.dirty&&!r.conflict)schedule(r)}
+ function select(r){lastEdit.current=null;if(!r.design.plants||!r.design.cables)r.design=showSchema.parse(r.design);current.current=r;records.current.set(r.id,r);past.current=[];future.current=[];try{localStorage.setItem(key+".last",r.id)}catch{}setMessage(r.conflict?"Save a copy to keep edits":r.dirty?"Saved on device":"Saved");bump();if(r.dirty&&!r.conflict)schedule(r)}
  function schedule(r){clearTimeout(r.timer);r.timer=setTimeout(()=>flush(r),850)}
  async function flush(r){if(!r||!r.dirty||r.busy||r.conflict)return; r.busy=true;const design=r.design;
   if(current.current===r&&active.current)setMessage("Saving…");
@@ -28,9 +29,15 @@ export function useProjects(){
   const retry=()=>flush(current.current);window.addEventListener("online",retry);return()=>{cancelled=true;active.current=false;window.removeEventListener("online",retry)}
  },[]);
  function replace(next){const r=current.current;r.design=next;r.dirty=true;const local=persist(r);setMessage(r.conflict?"Conflict · save a copy":local?"Saved on device":"Saving…");schedule(r);bump()}
- function change(next){past.current=[...past.current.slice(-39),current.current.design];future.current=[];replace(next)}
- function undo(){if(!past.current.length)return;future.current.push(current.current.design);replace(past.current.pop())}
- function redo(){if(!future.current.length)return;past.current.push(current.current.design);replace(future.current.pop())}
+ function change(update,gesture){
+  const before=current.current.design,next=typeof update==="function"?update(before):update;
+  if(next===before)return;
+  const now=performance.now(),previous=lastEdit.current;
+  if(!gesture||previous?.key!==gesture||now-previous.time>350)past.current=[...past.current.slice(-39),before];
+  lastEdit.current=gesture?{key:gesture,time:now}:null;future.current=[];replace(next)
+ }
+ function undo(){lastEdit.current=null;if(!past.current.length)return;future.current.push(current.current.design);replace(past.current.pop())}
+ function redo(){lastEdit.current=null;if(!future.current.length)return;past.current.push(current.current.design);replace(future.current.pop())}
  const projects=()=>Array.from(new Map([...Object.values(read()).map(r=>({id:r.id,name:r.design.name})),...list].map(r=>[r.id,r])).values());
  return {design:current.current?.design,id:current.current?.id,conflict:current.current?.conflict,status:message,change,open,create,projects,undo,redo,canUndo:past.current.length>0,canRedo:future.current.length>0,retry:()=>flush(current.current)};
 }

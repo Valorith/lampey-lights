@@ -17,7 +17,8 @@ export const lampPresets=[
 export const beamDefaults={yaw:0,pitch:26,spread:42,reach:9};
 const rad=Math.PI/180;
 export function beamDirection(f){const yaw=(f.yaw??0)*rad,pitch=(f.pitch??26)*rad;return [Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)]}
-export function lampOrigin(f){const p=f.points[0],n=f.normal||[0,1,0];return p.map((v,i)=>v+n[i]*.24)}
+export const floodScale=f=>(f.size??1.8)/1.8;
+export function lampOrigin(f){const p=f.points[0],n=f.normal||[0,1,0];return p.map((v,i)=>v+n[i]*.24*floodScale(f))}
 export function aimAt(f,point){const o=lampOrigin(f),[dx,dy,dz]=point.map((x,i)=>x-o[i]);
  if(Math.hypot(dx,dy,dz)<.02)return f;
  return {...f,yaw:Math.round(Math.atan2(dx,-dz)/rad),pitch:Math.round(Math.atan2(dy,Math.hypot(dx,dz))/rad)}
@@ -32,9 +33,9 @@ const unit=a=>a.map(v=>v/(Math.hypot(...a)||1));
 export function deviceBasis(d){
  const n=unit(d.normal||[0,1,0]),wall=Math.abs(n[1])<.55;
  const x=unit(cross(wall?[0,1,0]:n,wall?n:[0,0,1])),y=wall?cross(n,x):n,z=wall?n:cross(x,y);
- return {x,y,z,origin:d.point.map((v,i)=>v+(wall?.32:.014)*n[i])};
+ return {x,y,z,origin:d.point.map((v,i)=>v+(wall?.32:.014)*(d.scale??1)*n[i])};
 }
-export function devicePoint(d,u,v,w){const {origin,x,y,z}=deviceBasis(d);return origin.map((p,i)=>p+x[i]*u+y[i]*v+z[i]*w)}
+export function devicePoint(d,u,v,w){const {origin,x,y,z}=deviceBasis(d);return origin.map((p,i)=>p+(x[i]*u+y[i]*v+z[i]*w)*(d.scale??1))}
 export function outputPoint(d,port=1){return devicePoint(d,((port-1)%4-1.5)*.083,.095+Math.floor(((port-1)%16)/4)*.043,.19)}
 export function connected(c,id,design){return [c.from,c.to].some(key=>key==="d/"+id||design.fixtures.some(f=>f.device===id&&key==="f/"+f.id))}
 export function cablePoints(c,design){const ends=endpoints(design);const pts=c.points.map(p=>[...p]);
