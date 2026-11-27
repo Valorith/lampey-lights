@@ -73,13 +73,20 @@
 
 /* The matrix: controllers down, outputs across */
 .mxGridWrap{min-width:min-content;padding:0 28px 128px}
-.mxGrid{display:grid;grid-template-columns:var(--head) repeat(var(--cols),minmax(var(--cell),1fr));grid-template-rows:38px;grid-auto-rows:var(--rowh);border:1px solid var(--line-2);border-radius:14px;background:var(--ink-1);box-shadow:0 18px 44px #0006;animation:rise .45s var(--ease) both}
+.mxGrid{display:grid;grid-template-columns:var(--head) repeat(var(--cols),minmax(var(--cell),1fr));grid-template-rows:38px;grid-auto-rows:auto;border:1px solid var(--line-2);border-radius:14px;background:var(--ink-1);box-shadow:0 18px 44px #0006;animation:rise .45s var(--ease) both}
 .mxCorner,.mxColHead{position:sticky;top:0;z-index:3;background:#0e1628;border-bottom:1px solid var(--line-2)}
 .mxCorner{left:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-right:1px solid var(--line-2);border-top-left-radius:13px;font:700 10px var(--font-ui);letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
 .mxCorner span+span::after{content:" →";letter-spacing:0}
 .mxColHead{display:grid;place-items:center;border-right:1px solid var(--line);font:600 11.5px var(--font-mono);color:var(--faint);transition:color .15s,background .15s,box-shadow .15s}
 .mxRowHead{position:sticky;left:0;z-index:2;display:flex;align-items:center;gap:10px;min-width:0;padding:0 8px 0 12px;background:#0c1322;border-right:1px solid var(--line-2);border-bottom:1px solid var(--line);transition:background .15s}
 .mxRow{display:contents}
+.mxRowHead,.mxCell{height:var(--rowh)}
+.mxNet{grid-column:1/-1;height:30px;display:flex;align-items:center;background:linear-gradient(90deg,#141f36,#0d1525 60%);border-bottom:1px solid var(--line)}
+.mxNet span{position:sticky;left:0;display:flex;align-items:center;gap:8px;padding:0 14px;font:600 11.5px var(--font-ui);color:var(--muted);white-space:nowrap}
+.mxNet .ico{color:var(--frost)}
+.mxNet b{color:var(--text);font-weight:650}
+.mxNet small{font:500 11px var(--font-mono);color:var(--faint)}
+.mxNet small::before{content:"·";margin-right:8px}
 .choosing .mxRowHead{cursor:pointer}
 .mxRowHead.aim{background:#13241f;box-shadow:inset 3px 0 0 var(--pine)}
 .mxRowHead.aim .mxRowName small{color:var(--pine)}

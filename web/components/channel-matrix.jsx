@@ -208,7 +208,13 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
  const flight=useRef([]),pointer=useRef({row:"",col:0,fx:""}),refocus=useRef(false);
  const [engine]=useState(createDragEngine);
 
- const {groups,loose}=useMemo(()=>matrixGroups(design),[design]);
+ const {groups,loose}=useMemo(()=>{
+  const m=matrixGroups(design),order=new Map(design.networks.map((n,i)=>[n.id,i]));
+  // With several networks, keep each network's controllers together under one divider.
+  if(design.networks.length>1)m.groups.sort((a,b)=>(order.get(a.box.net)??1e9)-(order.get(b.box.net)??1e9));
+  return m;
+ },[design]);
+ const lanes=design.networks.length>1;
  const faults=useMemo(()=>{const map=new Map();for(const i of issues.filter(i=>i.level==="error")){
   if(!map.has(i.id))map.set(i.id,[]);map.get(i.id).push(i.message);
  }return map},[issues]);
@@ -322,7 +328,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
    setLanded([id,v.swap.other.id]);
   }else{
    change(applyPatch(design,v.fixture));
-   notify(g?f.name+" → "+[g.box.name+" · "+outputName(g,n),outputLabel(g.box,n)].filter(Boolean).join(" · "):f.name+" unpatched",false,true);
+   notify(g?f.name+" → "+[g.box.name+" · "+outputName(g,n),outputLabel(g.box,n),g.box.offPorts?.includes(n)&&"output off"].filter(Boolean).join(" · "):f.name+" unpatched",false,true);
    setLanded([id]);
   }
   pick("");
@@ -410,6 +416,21 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
 
  // Visible rows in order, so the arrow keys can step between controllers.
  const shownGroups=groups.filter(g=>!needle||(g.box.name+" "+g.model.name).toLowerCase().includes(needle)||[...g.outputs.values()].flat().some(fxHit)||g.overflow.some(fxHit)||Object.values(g.box.labels||{}).some(t=>t.toLowerCase().includes(needle)));
+ const cursorOk=(()=>{
+  const [b,n]=parseKey(cursor),g=shownGroups.find(x=>x.box.id===b);
+  return !!g&&cols.includes(n)&&(cellAt(g,n)[0]===n||n===cols[0]);
+ })();
+ // Enter in search jumps to the first matching output.
+ function firstMatch(){
+  for(const g of shownGroups){
+   const byName=(g.box.name+" "+g.model.name).toLowerCase().includes(needle);
+   for(let n=1;n<=g.model.ports;n++){
+    if((g.outputs.get(n)||[]).some(fxHit)||outputLabel(g.box,n).toLowerCase().includes(needle))return keyOf(g.box.id,cellAt(g,n)[0]);
+   }
+   if(byName)return keyOf(g.box.id,1);
+  }
+  return "";
+ }
  function cellKeys(e,g,n){
   const [a,b]=cellAt(g,n),rows=g.outputs.get(n)||[],key=keyOf(g.box.id,a);
   const step=(dg,m)=>{
@@ -496,7 +517,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
     (rows.some(f=>landed.includes(f.id))?" landed":"")+(rows.some(f=>faults.has(f.id))?" fault":"");
    const name=outputName(g,n)+(span>1?"–"+(n+span-1):"")+" on "+box.name;
    const held=rows.length?rows.map(f=>f.name).join(", "):off?"off":"empty",said=[name,tag!==held&&tag,held].filter(Boolean).join(", ");
-   return <div key={n} role="gridcell" tabIndex={cursor===key||(!cursor&&key===firstKey)?0:-1} aria-label={said} aria-selected={cursor===key}
+   return <div key={n} role="gridcell" tabIndex={cursorOk?(cursor===key?0:-1):key===firstKey?0:-1} aria-label={said} aria-selected={cursor===key}
     className={cls} data-port={key} data-drop={active?key:undefined} data-span={span>1?span:undefined} data-r={box.id} data-c={" "+covered.join(" ")+" "}
     style={{gridColumn:span>1?"span "+span:undefined,"--fixture":rows[0]?.color}} title={tag||undefined}
     onPointerEnter={()=>{if(!engine.dragging())paintCross({row:box.id,col:n})}} onFocus={()=>setCursor(key)}
@@ -516,7 +537,12 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
     {pixel&&rows.length>0&&<Load load={portLoad(g,n,network)}/>}
    </div>;
   });
-  return <div role="row" key={box.id} className="mxRow">
+  const prev=shownGroups[shownGroups.indexOf(g)-1],laneCount=shownGroups.filter(x=>x.box.net===box.net).length;
+  const divider=lanes&&(!prev||prev.box.net!==box.net)&&<div role="row" key={"net-"+box.net} className="mxRow">
+   <div role="rowheader" className="mxNet"><span><I n="network" size={13}/><b>{network?.name||"No network"}</b>{network&&<small>{protocols[network.protocol]}</small>}
+    <small>{laneCount} {laneCount===1?"box":"boxes"}</small></span></div>
+  </div>;
+  return [divider,<div role="row" key={box.id} className="mxRow">
    <div role="rowheader" className={"mxRowHead"+(problem?" fault":"")+(autoAim?" aim"+(target.startsWith(NONE)?" none":""):"")} data-r={box.id} data-drop={active?AUTO+box.id:undefined}
     title={problem?.join(" · ")} onClick={()=>{if(active)place(active.id,AUTO+box.id)}}>
     <span className="mxRowIcon"><I n={problem?"alert":"box"} size={16}/></span>
@@ -529,7 +555,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
     <button type="button" className="tool mxRowEdit" aria-label={"Settings for "+box.name} data-tip="Box settings" data-tip-pos="down" onClick={e=>{e.stopPropagation();editBox(box)}}><I n="settings" size={15}/></button>
    </div>
    {cells}
-  </div>;
+  </div>];
  }
 
  const patched=design.fixtures.filter(f=>boxOf(f.device)).sort((a,b)=>{
@@ -540,8 +566,8 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
  const totalPorts=groups.reduce((s,g)=>s+g.model.ports,0),usedPorts=groups.reduce((s,g)=>s+g.outputs.size,0);
  const ghostFx=drag&&design.fixtures.find(f=>f.id===drag.id);
  const verdict=drag&&target?judgeAt?.(target):null;
- const aimGroup=boxOf(aimBox);
- const rows=groups.map(row).filter(Boolean);
+ const aimGroup=boxOf(aimBox),aimOff=!!aimGroup?.box.offPorts?.includes(aimN)&&verdict?.ok&&!verdict.unpatch;
+ const rows=groups.map(row).flat().filter(Boolean);
  const binItem=f=><button type="button" key={f.id} data-item={f.id}
   className={"mxItem"+(drag?.id===f.id?" source":picked===f.id?" picked":"")+(landed.includes(f.id)&&!f.device?" landed":"")} aria-pressed={picked===f.id}
   onPointerDown={e=>engine.grab(e,f.id)} onClick={e=>{if(engine.quiet())return;e.stopPropagation();if(picked!==f.id)reveal(f);pick(picked===f.id?"":f.id)}}
@@ -576,7 +602,11 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
     </div>
     <div className="mxTools">
      <label className="search"><I n="search" size={16}/><input ref={searchRef} aria-label="Search matrix" placeholder="Find fixture, box or port" value={query}
-      onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==="Escape"){setQuery("");e.currentTarget.blur()}}}/>
+      onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{
+       if(e.key==="Escape"){setQuery("");e.currentTarget.blur()}
+       else if(e.key==="Enter"&&needle){const key=firstMatch();if(key){e.preventDefault();moveCursor(key);setFocus(null);requestAnimationFrame(()=>setFocus(key))}}
+       else if(e.key==="ArrowDown"){const key=cursorOk?cursor:shownGroups[0]&&keyOf(shownGroups[0].box.id,cols[0]||1);if(key){e.preventDefault();moveCursor(key)}}
+      }}/>
       {query?<button type="button" className="clear plain" aria-label="Clear search" onClick={()=>setQuery("")}><I n="x" size={13}/></button>:<kbd>/</kbd>}</label>
      <div className="mxSeg" role="group" aria-label="Show outputs" style={{"--i":filters.indexOf(filter),"--count":filters.length}}>
       {filters.map(v=><button type="button" key={v} aria-pressed={filter===v} onClick={()=>setFilter(v)}>{v}</button>)}</div>
@@ -619,9 +649,9 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
 
   {ghostFx&&<div ref={ghostRef} className="mxGhost" aria-hidden="true" style={{width:drag.w,"--fixture":ghostFx.color}}>
    <div className="mxGhostCard"><i className="mxLamp"/><span><strong>{ghostFx.name}</strong><small>{where(ghostFx)||ghostFx.zone}</small></span><I n="grip" size={16}/></div>
-   {verdict&&!verdict.home&&<div className={"mxVerdict"+(verdict.error?" bad":verdict.swap?" swap":"")}>
+   {verdict&&!verdict.home&&<div className={"mxVerdict"+(verdict.error?" bad":verdict.swap||aimOff?" swap":"")}>
     <I n={verdict.error?"alert":verdict.swap?"swap":verdict.unpatch?"cable":"check"} size={13}/>
-    <span>{verdict.error||(verdict.unpatch?"Unpatch":verdict.swap?(verdict.swap.replaced?"Replace ":"Swap with ")+verdict.swap.other.name:aimGroup&&[aimGroup.box.name+" · "+outputName(aimGroup,aimN),outputLabel(aimGroup.box,aimN)].filter(Boolean).join(" · "))}</span>
+    <span>{verdict.error||(verdict.unpatch?"Unpatch":verdict.swap?(verdict.swap.replaced?"Replace ":"Swap with ")+verdict.swap.other.name:aimGroup&&[aimGroup.box.name+" · "+outputName(aimGroup,aimN),outputLabel(aimGroup.box,aimN),aimOff&&"output off"].filter(Boolean).join(" · "))}</span>
    </div>}
   </div>}
 
