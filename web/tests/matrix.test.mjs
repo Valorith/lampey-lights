@@ -111,3 +111,20 @@ test("Filling labels names only unlabeled outputs after their fixtures",()=>{
  assert.equal(fillLabels(show).count,0);
  assert.deepEqual(locationSuggestions(show,["Mine","Dormer feed"]).slice(0,2),["Mine","Dormer feed"]);
 });
+test("The build sheet shows every output, chains shared pixel ports and escapes names",async()=>{
+ const {matrixDocument}=await import("../lib/matrix-print.js");
+ const s=design(),box=s.devices[0],[a,b]=s.fixtures;
+ let next=applyPatch(s,planPatch(s,b.id,box.id,1).fixture);
+ next=labelOutput(next,box.id,1,"Front <eave>");
+ next.fixtures=next.fixtures.map(f=>f.id===a.id?{...f,name:"Roof & \"gutter\""}:f);
+ next.devices[0]={...next.devices[0],offPorts:[16]};
+ const html=matrixDocument(next,{generated:new Date(2026,10,27)});
+ assert.match(html,/Roof &amp; &quot;gutter&quot;/);
+ assert.match(html,/Front &lt;eave&gt;/);
+ assert.doesNotMatch(html,/Front <eave>/);
+ assert.match(html,/>P01</);assert.match(html,/>P16</);
+ assert.match(html,/class="chain"/);
+ assert.match(html,/>Off</);
+ // Overview, matrix, and one wiring page: 17 rows (16 outputs plus a chained strand) fit on one sheet.
+ assert.equal((html.match(/class="page"/g)||[]).length,3);
+});

@@ -4,6 +4,7 @@ import {circuitSpan} from "../lib/patch";
 import {applyPatch,channelRange,fillLabels,labelOutput,locationSuggestions,matrixGroups,outputLabel,planPatch,planSwap,portLoad} from "../lib/matrix";
 import {I,Empty,usePref} from "./ui-kit";
 import {Modal} from "./forms";
+import {matrixDocument} from "../lib/matrix-print";
 import "../app/matrix.css";
 
 const pageCols=32,BIN="bin",AUTO="auto:",NONE="none:",filters=["All","Used","Free","Issues"];
@@ -480,6 +481,17 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
    {icon:"settings",label:"Box settings",run:()=>editBox(g.box)}
   ]});
  }
+ // Open the printable build sheet in its own tab; fall back to printing from a hidden frame.
+ function exportSheet(){
+  const html=matrixDocument(design,{origin:location.origin});
+  const tab=window.open("","_blank");
+  if(tab){tab.document.open();tab.document.write(html);tab.document.close();return}
+  const frame=document.createElement("iframe");
+  frame.style.cssText="position:fixed;width:0;height:0;border:0;visibility:hidden";
+  document.body.append(frame);
+  frame.contentDocument.open();frame.contentDocument.write(html);frame.contentDocument.close();
+  setTimeout(()=>{frame.contentWindow.print();setTimeout(()=>frame.remove(),1000)},400);
+ }
  const closeMenu=restore=>{const key=menu?.key;setMenu(null);if(restore&&key)moveCursor(key)};
 
  function row(g){
@@ -615,6 +627,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
       <button type="button" aria-pressed={density!=="compact"} aria-label="Detailed cells" data-tip="Detailed" data-tip-pos="down" onClick={()=>setDensity("detailed")}><I n="zoomIn" size={15}/></button></div>
      {fill.count>0&&<button type="button" className="mxFill" data-tip="Name unlabeled outputs after their fixtures" data-tip-pos="down" onClick={()=>{change(fill.show);notify("Labeled "+fill.count+(fill.count===1?" output":" outputs"),false,true)}}><I n="pin" size={15}/>Fill labels</button>}
      <button type="button" className={"tool mxBinToggle"+(bin?" on":"")} aria-pressed={bin} aria-label="Fixture list" data-tip={bin?"Hide fixtures":"Show fixtures"} data-tip-pos="down" onClick={()=>setBin(b=>!b)}><I n="sidebar" size={16}/></button>
+     <button type="button" className="mxExport" disabled={!groups.length} data-tip="Printable wiring sheets" data-tip-pos="down" onClick={exportSheet}><I n="printer" size={15}/>Export</button>
      <button type="button" className="mxAdd" onClick={addBox}><I n="plus" size={15}/>Add box</button>
     </div>
    </header>
