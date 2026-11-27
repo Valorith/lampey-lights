@@ -110,3 +110,38 @@ export function propPattern(f){
  return pts;
 }
 
+
+export function measuredLength(path) {
+ return path?.length > 1 && !path.obstructed ? routeLength(path) : null;
+}
+
+export function fixtureLeads(fixture, cables) {
+ const box = "d/"+fixture.device, light = "f/"+fixture.id;
+ return cables.filter(c => ["power","dc","pixel"].includes(c.kind) &&
+  ((c.from === box && c.to === light) || (c.to === box && c.from === light)));
+}
+
+export function leadFootage(cable, path) {
+ const meters = measuredLength(path);
+ if (meters === null) return null;
+ const route = meters / .3048;
+ const slack = cable.slackFt || 0;
+ return {route,slack,total:route+slack};
+}
+
+export function cordLabel(cable, path) {
+ const length = leadFootage(cable, path);
+ if (!length) return "Unmeasured";
+ const route = length.route.toFixed(1) + " ft";
+ return length.slack ? route + " + " + length.slack.toFixed(1) + " ft extra = " + length.total.toFixed(1) + " ft" : route;
+}
+
+export function fixtureFootage(fixture, design, geometry) {
+ const strand = fixture.shape === "run" ? measuredLength(geometry.fixture(fixture)) : null;
+ const leads = fixtureLeads(fixture, geometry.cables(design));
+ const lengths = leads.map(c => leadFootage(c, geometry.cable(c, design)));
+ const complete = lengths.length > 0 && lengths.every(Boolean);
+ const sum = key => complete ? lengths.reduce((total, item) => total + item[key], 0).toFixed(1) : "";
+ return [strand === null ? "" : (strand/.3048).toFixed(1), sum("route"), sum("slack"), sum("total"),
+  !leads.length ? "" : !complete ? "Unmeasured" : leads.some(c => c.inferred) ? "Estimated" : "Traced"];
+}

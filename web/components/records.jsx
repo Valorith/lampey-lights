@@ -1,14 +1,13 @@
 import {useState} from "react";
-import {profile,hardware,protocols,fixtures,sources,isSerial,length} from "../lib/show";
+import {profile,hardware,protocols,sources,isSerial} from "../lib/show";
+import {patchCSV} from "../lib/patch-csv";
 import {patchText} from "../lib/patch";
 import historical from "../lib/history.json";
 import {I,Empty} from "./ui-kit";
 
 export function saveFile(name,body,type){const url=URL.createObjectURL(new Blob([body],{type}));const a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-export function exportPatch(show){
- const rows=[["Fixture","Area","Type","Box / output / address","Quantity","Pixel offset","Status","Previous patch","Notes","Modeled strand length (ft)"],...show.fixtures.map(f=>[f.name,f.zone,fixtures[f.type],patchText(f,show),f.count,f.offset,f.state||"Planned",f.reference,f.notes,f.shape==="run"?(length(f)/.3048).toFixed(1):""])];
- const escape=v=>{let s=String(v??"");if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'};
- saveFile(show.name+" patch.csv","﻿"+rows.map(r=>r.map(escape).join(",")).join("\r\n"),"text/csv;charset=utf-8");
+export function exportPatch(show,routes){
+ saveFile(show.name+" patch.csv",patchCSV(show,routes),"text/csv;charset=utf-8");
 }
 
 const states=["Planned","Installed","Needs check","Spare"];
@@ -42,7 +41,7 @@ export function Network({design,issues,editNet,editBox,locate,open}){
  </div></div>
 }
 
-export function Patch({design,issues,edit,historyAdd,open,setState}){
+export function Patch({design,routes,issues,edit,historyAdd,open,setState}){
  const [tab,setTab]=useState("Current patch"),[q,setQ]=useState(""),[box,setBox]=useState("all"),[only,setOnly]=useState("all"),[sort,setSort]=useState({key:"",dir:1});
  const test=(...s)=>s.join(" ").toLowerCase().includes(q.trim().toLowerCase());
  const matching=design.fixtures.filter(f=>(box==="all"||f.device===box)&&test(f.name,f.zone,f.state,f.reference,patchText(f,design)));
@@ -55,7 +54,7 @@ export function Patch({design,issues,edit,historyAdd,open,setState}){
  const head=(label,key)=><th aria-sort={sort.key===key?(sort.dir>0?"ascending":"descending"):undefined}><button className="plain sortBtn" onClick={()=>setSort(s=>s.key!==key?{key,dir:1}:s.dir>0?{key,dir:-1}:{key:"",dir:1})}>{label}{sort.key===key&&<I n={sort.dir>0?"up":"down"} size={13}/>}</button></th>;
  const tabs=["Current patch","Historical setup"];
  return <div className="ledger"><div className="page">
-  <div className="sectionHead"><h1>Patch book</h1><div className="actions"><button onClick={()=>window.print()}><I n="printer" size={15}/>Print labels</button><button onClick={()=>exportPatch(design)}><I n="download" size={15}/>Export CSV</button></div></div>
+  <div className="sectionHead"><h1>Patch book</h1><div className="actions"><button onClick={()=>window.print()}><I n="printer" size={15}/>Print labels</button><button disabled={!routes} onClick={()=>exportPatch(design,routes)}><I n="download" size={15}/>Export CSV</button></div></div>
   <div className="tabs" style={{"--i":tabs.indexOf(tab)}}>{tabs.map(t=><button className={t===tab?"active":""} key={t} onClick={()=>{setTab(t);setQ("")}}>{t}</button>)}</div>
   <div className="filters"><label className="search"><I n="search" size={15}/><input aria-label="Search patch" placeholder="Search fixtures or channels" value={q} onChange={e=>setQ(e.target.value)}/>{q&&<button type="button" className="plain clear" aria-label="Clear search" onClick={()=>setQ("")}><I n="x" size={13}/></button>}</label>
    {tab==="Current patch"&&<select aria-label="Filter by box" value={box} onChange={e=>setBox(e.target.value)}><option value="all">All boxes</option><option value="">Unpatched</option>{design.devices.filter(d=>hardware[d.model].ports).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select>}

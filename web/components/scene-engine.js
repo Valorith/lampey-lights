@@ -1,6 +1,7 @@
 import {bindPropGestures} from "./prop-gestures.js";
 import {sceneProp,moveProp} from "../lib/prop-transform.js";
-import {fitCord} from "../lib/cord-route.js";
+import {createRouteGeometry} from "../lib/route-geometry.js";
+import {editRoutePoint} from "../lib/route-edit.js";
 import {propertySurface} from "../lib/surface-fit.js";
 import {clearWindowTrim,guideNormal} from "../lib/window-mounts.js";
 import {depthAtPoints} from "../lib/software-depth.js";
@@ -10,7 +11,7 @@ import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import {wirePoints,mounts,mountNames} from "../lib/show";
 import {stageRenderer} from "./stage-renderer";
 import {plantMesh} from "./plant-mesh.js";
-import {routeLength,sceneCables,beamDirection,floodScale,lampOrigin,cablePoints,routedPoints} from "../lib/stage";
+import {routeLength,beamDirection,floodScale,lampOrigin,cablePoints,routedPoints} from "../lib/stage";
 import {shapePath,measure,along,nearestOnPath,simplify,describe,lightCount,wallYaw,dragTools,toolDefaults} from "../lib/draw-tools.js";
 
 const vec=p=>new T.Vector3(...p);
@@ -48,57 +49,14 @@ export function createScene(host,events){
  let depthCache=null,depthKey="",wires=[],state={},runs=[],triangles=[],labels=[],pickMeshes=[],model,disposed=false,raf=0,last=0,w=1,h=1,down=null,drag=-1,bulbs,mat,coords,colors,projection=[];
  const ray=new T.Raycaster();
  let lastWarning="";const blockedRoutes=new Set();
- let fitted=null,cacheDesign=null,cache=new Map(),lastInput=null,posed=null,previewPath=[];
- const strandFits=new WeakMap(),cordFits=new Map();
- function placeBodies(design){if(!fitted||!design)return design;if(lastInput===design)return posed;lastInput=design;
-  const devices=design.devices.map(d=>{if(!d.point)return d;const normal=d.normal||fitted.support(d.point);if(!normal)return d;
-   const scale=d.scale??1,wall=Math.abs(normal[1])<.55;
-   return {...d,normal,point:fitted.footprint(d.point,normal,.41*scale,(wall?.38:.3)*scale,wall?.29*scale:0,d.rotation)}});
-  const fixtures=design.fixtures.map(f=>{if(f.shape==="run"||!f.points.length||f.plant)return f;
-   const normal=f.normal||fitted.support(f.points[0]);if(!normal)return f;const points=f.shape==="flood"?[fitted.footprint(f.points[0],normal,.22*floodScale(f),.22*floodScale(f),0,f.rotation)]:f.points;
-   return {...f,normal,points}});
-  posed={...design,devices,fixtures};return posed;
+ let fitted=null, routes=createRouteGeometry(null), previewPath=[];
+ function visibleRoute(row,path){
+  if(!path.obstructed)return path;
+  if(!row.inferred)blockedRoutes.add(row.name);
+  return [];
  }
- function cached(key,design,build){if(design!==cacheDesign){cacheDesign=design;cache.clear()}if(!cache.has(key))cache.set(key,build());return cache.get(key)}
- function fixturePath(f){return cached("f/"+f.id,state.design,()=>{
-  const raw=wirePoints(f);if(!fitted||f.plant||!raw.length)return raw;
-  if(f.shape==="run"){
-   let path=strandFits.get(f);
-   if(!path){const normal=guideNormal(f.mount);path=fitted.route(raw,{normals:normal?raw.map(()=>normal):f.normals,window:true});strandFits.set(f,path)}
-   if(path.obstructed){blockedRoutes.add(f.name);return []}return path
-  }
-  if(!f.normal||f.shape==="flood")return raw;
-  const n=vec(f.normal),anchor=vec(f.points[0]),min=Math.min(...raw.map(p=>vec(p).sub(anchor).dot(n)));
-  return raw.map(v=>fitted.seat(vec(v).addScaledVector(n,Math.max(0,.026-min)),n,0).toArray());
- })}
- function terminals(c,design){const raw=cablePoints(c,design);let targetNormal=null;
-  for(const [key,index] of [[c.from,0],[c.to,raw.length-1]]){if(!key?.startsWith("f/"))continue;
-   const f=design.fixtures.find(f=>"f/"+f.id===key);if(!f?.points.length)continue;
-   const first=fixturePath(f)[0];if(first){raw[index]=first;targetNormal=guideNormal(f.mount)||f.normal||f.normals?.[0]}}
-  return {raw,targetNormal};
- }
- function cordPath(c,design){return cached("c/"+c.id,design,()=>{const {raw,targetNormal}=terminals(c,design);
-  if(!fitted||c.attachment==="free")return routedPoints(raw,c.style,c.sag);
-  const key=JSON.stringify([raw,targetNormal,c.style,c.sag,c.width,c.normals,c.inferred]);
-  let entry=cordFits.get(c.id);
-  if(entry?.key!==key){entry={key,path:fitWire(c,raw,targetNormal)};cordFits.set(c.id,entry)}
-  if(entry.path.obstructed){if(!c.inferred)blockedRoutes.add(c.name);return []}
-  return entry.path;
- })}
- function fitWire(c,raw,targetNormal){
-  const path=fitCord(fitted,raw,c,targetNormal);if(path.obstructed)return path;
-  if(c.style==="hanging"){const drape=[];for(let i=1;i<path.length;i++){
-   const run=routedPoints([path[i-1],path[i]],"hanging",c.sag);
-   for(let j=i===1?0:1;j<run.length;j++){const t=j/(run.length-1),straight=path[i-1][1]*(1-t)+path[i][1]*t;
-    drape.push(fitted.seat(vec(run[j]),new T.Vector3(0,1,0),c.width/2,Math.max(.08,straight-run[j][1]+.10),.08).toArray())}
-  }return drape}
-  if(c.style!=="smooth")return path;
-  const curve=routedPoints(path,"smooth"),r=c.width/2+.012;
-  for(let i=1;i<curve.length;i++){
-   const a=vec(curve[i-1]),b=vec(curve[i]),v=b.clone().sub(a),length=v.length();
-   if(length>.0001&&(fitted.cast(a,v.divideScalar(length),length)||fitted.nearest(b,r)))return path;
-  }return curve;
- }
+ const fixturePath=f=>visibleRoute(f,routes.fixture(f));
+ const cordPath=(c,design)=>visibleRoute(c,routes.cable(c,design));
  const stage=stageRenderer(scene,cordPath);
  function screen(p){const v=p.clone().project(cam);return {x:(v.x+1)*w/2,y:(1-v.y)*h/2,z:v.z}}
  let ghost=null,ghostPlant=null,ghostRoot=null;
@@ -138,7 +96,7 @@ export function createScene(host,events){
   let normal=null,point=hit?.point.clone();if(point&&hit.face){const norm=hit.face.normal.clone().transformDirection(hit.object.matrixWorld);if(norm.dot(ray.ray.direction)>0)norm.negate();normal=norm.toArray();point.addScaledVector(norm,.045)}
   return {x,y,normal,point:point&&["draw","edit"].includes(state.mode)?clearWindowTrim(point.toArray()):point?.toArray(),distance:hit?.distance??Infinity,surfaceName:hit?.object.name}
  }
- function invalidate(){if(!raf&&!disposed)raf=requestAnimationFrame(draw)}
+ function invalidate(){if(!raf&&!disposed&&state.active!==false)raf=requestAnimationFrame(draw)}
  // Camera moves swing around the target so a change of view orbits the house instead of cutting through it.
  let tween=null;const still=typeof matchMedia==="function"&&matchMedia("(prefers-reduced-motion: reduce)").matches;
  function fly(position,target,ms=720){
@@ -157,7 +115,7 @@ export function createScene(host,events){
   const [p,t]=views[name]||views.Street;const target=vec(t);fly(vec(p).sub(target).multiplyScalar(Math.max(1,1.12/(w/h))).add(target),target,instant?0:720)
  }
  function focus(point){const target=vec(point),offset=cam.position.clone().sub(controls.target);offset.setLength(Math.min(Math.max(offset.length(),4),13));fly(target.clone().add(offset),target,560)}
- function resize(){w=Math.max(1,host.clientWidth);h=Math.max(1,host.clientHeight);cam.aspect=w/h;cam.updateProjectionMatrix();gl?.setSize(w,h,false);
+ function resize(){if(!host.clientWidth||!host.clientHeight)return;w=Math.max(1,host.clientWidth);h=Math.max(1,host.clientHeight);cam.aspect=w/h;cam.updateProjectionMatrix();gl?.setSize(w,h,false);
   for(const c of [overlay,cpuCanvas].filter(Boolean)){c.width=w;c.height=h}invalidate()}
  const observer=new ResizeObserver(resize);observer.observe(host);resize();preset("Street",true);controls.addEventListener("change",invalidate);controls.addEventListener("start",()=>{tween=null});
  new GLTFLoader().load("/property.glb?rev=rear-room-slider-4",asset=>{
@@ -171,12 +129,11 @@ export function createScene(host,events){
     for(let j=g.start;j<g.start+g.count;j+=3){const [a,b,c]=[0,1,2].map(k=>vs[ix?ix.getX(j+k):j+k]);const n=b.clone().sub(a).cross(c.clone().sub(a)).normalize();const lum=.55+.45*Math.max(0,n.dot(new T.Vector3(-.4,.8,.45)));
      const color=m.color.clone().multiplyScalar(lum);triangles.push({a,b,c,n,day:"#"+color.getHexString(),night:"#"+color.multiply(new T.Color(.26,.34,.48)).getHexString()})}
    }
-  });fitted=propertySurface(pickMeshes);cache.clear();depthCache=null;if(state.design){state={...state,design:placeBodies(state.design)};rebuild()}events.ready();invalidate()
+  });fitted=propertySurface(pickMeshes);routes=createRouteGeometry(fitted);depthCache=null;if(state.design){state={...state,design:routes.placeBodies(state.design)};rebuild()}events.ready(routes);invalidate()
  },undefined,()=>events.fail("The property could not load. Reload to retry."));
  function rebuild(){
-  depthCache=null;if(cacheDesign!==state.design)blockedRoutes.clear();
-  wires=state.design?sceneCables(state.design):[];
-  const wireIds=new Set(wires.map(c=>c.id));for(const id of cordFits.keys())if(!wireIds.has(id))cordFits.delete(id);
+  depthCache=null;blockedRoutes.clear();
+  wires=state.design?routes.cables(state.design):[];
   buildSnaps();
   if(state.design)stage.sync(state.design,pickMeshes,!!ctx);
   if(bulbs){scene.remove(bulbs);bulbs.geometry.dispose();mat.dispose()}
@@ -188,7 +145,7 @@ export function createScene(host,events){
   bulbs=new T.Points(geo,mat);bulbs.frustumCulled=false;scene.add(bulbs);const warning=[...blockedRoutes].join(", ");if(warning&&lastWarning!==warning)events.fail("Add a waypoint around the obstruction: "+warning);lastWarning=warning;invalidate()
  }
  function draw(now){
-  raf=0;if(disposed)return;if(!tween&&(state.play||stage.animated())&&now-last<(gl?50:130)&&document.hasFocus()){invalidate();return}last=now;if(tween)stepTween(now);
+  raf=0;if(disposed||state.active===false)return;if(!tween&&(state.play||stage.animated())&&now-last<(gl?50:130)&&document.hasFocus()){invalidate();return}last=now;if(tween)stepTween(now);
   ambient.intensity=state.night?.82:2;ambient.color.set(state.night?0xaac6ff:0xe9f2ff);key.intensity=state.night?.64:2.15;key.color.set(state.night?0xbdd1ff:0xffedcd);
   cam.updateMatrixWorld();ink.clearRect(0,0,w,h);
   let k=0;projection=[];const time=now/1000;
@@ -225,7 +182,7 @@ export function createScene(host,events){
   labels=[];
   function tag(p,text,color,id){const s=screen(vec(p));if(s.z>1||s.z< -1)return;ink.font="600 12px Figtree, system-ui, sans-serif";const tw=ink.measureText(text).width+20;let y=s.y-30;for(let n=0;n<4&&labels.some(l=>Math.abs(l.y-y)<21&&Math.abs(l.x-s.x)<(tw+l.w)/2);n++)y-=22;const x=s.x-tw/2;ink.fillStyle="#0a101dee";ink.beginPath();ink.roundRect(x,y,tw,21,6);ink.fill();ink.strokeStyle="#ffffff2e";ink.lineWidth=1;ink.stroke();ink.fillStyle=color;ink.beginPath();ink.roundRect(x+4,y+5,2.5,11,1.2);ink.fill();ink.fillStyle="#f5f0e6";ink.fillText(text,x+10,y+14.5);labels.push({x:s.x,y,w:tw,id})}
   for(const r of runs){if(r.pts.length&&(state.labels||r.f.id===state.sel||r.f.id===state.hover))tag(r.pts[Math.floor(r.pts.length/2)].toArray(),r.f.name,r.f.color,r.f.id);
-   if(state.mode==="edit"&&r.f.id===state.sel){const anchors=r.f.points.map(p=>mountPoint(r.f,p));line(anchors,"#ffce80");anchors.forEach(p=>dot(p,"#ffce80",5))}}
+   if(state.mode==="edit"&&r.f.id===state.sel){const anchors=r.f.points.map(p=>mountPoint(r.f,p));line(fixturePath(r.f),"#ffce80");anchors.forEach(p=>dot(p,"#ffce80",5))}}
   const box=state.design?.devices.find(d=>d.id===state.sel&&d.point);
   if(box){const s=screen(vec(box.point));events.anchor(s.x,s.y,s.z);const el=host.parentElement.querySelector(".boxPopover");if(el&&s.z<1){const x=s.x<el.offsetLeft?el.offsetLeft:s.x>el.offsetLeft+el.offsetWidth?el.offsetLeft+el.offsetWidth:Math.max(el.offsetLeft,Math.min(s.x,el.offsetLeft+el.offsetWidth));const y=Math.max(el.offsetTop+8,Math.min(s.y,el.offsetTop+el.offsetHeight-8));ink.strokeStyle="#b3ebc8";ink.lineWidth=1.4;ink.beginPath();ink.moveTo(s.x,s.y);ink.lineTo(x,y);ink.stroke();dot(box.point,"#b3ebc8",3)}for(const f of state.design.fixtures.filter(f=>f.device===box.id&&f.points.length&&f.visible)){
     const end=f.points[0],c=wires.find(c=>[c.from,c.to].includes("d/"+box.id)&&[c.from,c.to].includes("f/"+f.id));
@@ -238,7 +195,7 @@ export function createScene(host,events){
   if((state.wiring||box)&&state.design){
    for(const d of state.design.devices.filter(d=>d.point)){const parent=state.design.devices.find(p=>p.id===d.parent&&p.point);if(parent&&(state.wiring||box?.id===d.id||box?.id===parent.id)&&!wires.some(c=>[c.from,c.to].includes("d/"+d.id)&&[c.from,c.to].includes("d/"+parent.id)))line([parent.point,d.point],d.model==="rx"?"#bfa8e7":"#83acc3",[2,6]);if(state.labels||d.id===state.sel||d.id===state.hover)tag(d.point,d.name,"#79dccc",d.id)}
    for(const c of wires){if(!c.visible||(c.inferred&&c.id!==state.sel))continue;const pts=cablePoints(c,state.design);if(state.labels||c.id===state.sel||c.id===state.hover)tag(pts[Math.floor(pts.length/2)],c.name,c.color,c.id);
-    if(c.id===state.sel&&state.mode==="cableEdit")pts.forEach(p=>dot(p,"#ffce80",5))}
+    if(c.id===state.sel&&state.mode==="cableEdit")editTarget().pts.forEach(p=>dot(p,"#ffce80",5))}
   }
   if(state.draft?.length){line(previewPath,state.routeColor||state.ghost?.color||"#ffe097",[4,3]);state.draft.forEach(p=>dot(p,"#ffe097",4))}
   paintTools();
@@ -255,7 +212,7 @@ export function createScene(host,events){
   for(const f of state.design?.fixtures||[])if(f.shape==="run"&&f.visible&&!f.plant&&!f.mount&&f.points.length>1){lines.push({pts:f.points});f.points.forEach((p,i)=>vertices.push({p,normal:f.normals?.[i]}))}
   snapSets={vertices,lines};
  }
- function editTarget(){const c=state.mode==="cableEdit"&&wires.find(c=>c.id===state.sel),f=!c&&state.design?.fixtures.find(f=>f.id===state.sel);
+ function editTarget(){const selected=state.mode==="cableEdit"&&wires.find(c=>c.id===state.sel),c=selected&&routes.editableCable(selected,state.design),f=!c&&state.design?.fixtures.find(f=>f.id===state.sel);
   return {c,f,pts:c?cablePoints(c,state.design):f?.points.map(p=>mountPoint(f,p)),insertable:!!c||f?.shape==="run"}}
  // Pull the cursor onto a nearby corner or edge of the house or of another strand.
  function snapped(hit,off){
@@ -295,7 +252,13 @@ export function createScene(host,events){
   invalidate();
  }
  function hover(e){
-  if(drag>=0){const raw=resolveHit(e);dragHit=raw.point?raw:null;invalidate();return}
+  if(drag>=0){
+   const raw=resolveHit(e),{c,f}=editTarget();
+   const row=raw.point && (c||f) && editRoutePoint(c||f,inserting?"insert":"move",inserting?drag+1:drag,raw.point,raw.normal,state.lift);
+   const path=row && (c?routes.cable(row,state.design):routes.fixture(row));
+   dragHit=path?{...raw,path}:null;
+   invalidate();return;
+  }
   if(!placing()){if(cursor){cursor=null;invalidate()}return}
   const t=aim(e);cursor={...t,shift:e.shiftKey};
   if(dragDraw&&down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])>6)dragDraw.moved=true;
@@ -314,7 +277,13 @@ export function createScene(host,events){
   const lampsFor=points=>ghost.spacing?lightCount(routeLength(points),ghost.spacing):ghost.count;
   if(state.mode==="edit"||state.mode==="cableEdit"){const {pts,insertable}=editTarget();if(pts){
    if(insertable&&pts.length<160&&drag<0)for(let i=1;i<pts.length;i++)ring(pts[i].map((v,k)=>(v+pts[i-1][k])/2),3.5,"#ffce80");
-   if(drag>=0&&dragHit){path([inserting?pts[drag]:pts[drag-1],dragHit.point,pts[drag+1]].filter(Boolean),"#ffffff",1.6,[5,4]);disc(dragHit.point,"#ffffff",5)}}}
+   if(drag>=0&&dragHit){
+    const fit=dragHit.path, blocked=fit.obstructed;
+    path(fit,blocked?"#ffffff99":"#79edbf",2,[5,4]);
+    for(const span of fit.blockedSegments||[])path(span,"#ff626e",4);
+    disc(dragHit.point,blocked?"#ff626e":"#79edbf",5);
+    if(blocked)note(dragHit.x,dragHit.y,"Blocked · add an outside waypoint");
+   }}}
   if(!placing()||!cursor?.point)return;
   const p=cursor.point,s=screen(vec(p));
   if(state.mode==="draw"){
@@ -341,7 +310,7 @@ export function createScene(host,events){
   ring(p,7,"#ffffffcc");disc(p,color,2.5);
  }
  function pointerDown(e){down=[e.clientX,e.clientY];drag=-1;inserting=false;dragHit=null;
-  if(state.mode==="edit"||state.mode==="cableEdit"){const {c,pts,insertable}=editTarget(),{x,y}=resolveHit(e);
+  if(state.mode==="edit"||state.mode==="cableEdit"){if(e.button!==0)return;const {c,pts,insertable}=editTarget(),{x,y}=resolveHit(e);
    const over=(p,r)=>{const q=screen(vec(p));return Math.hypot(x-q.x,y-q.y)<r};
    drag=pts?.findIndex((p,i)=>!(c&&((!i&&c.from)||(i===pts.length-1&&c.to)))&&over(p,17))??-1;
    if(drag<0&&insertable&&pts&&pts.length<160){drag=pts.findIndex((p,i)=>i<pts.length-1&&over(p.map((v,k)=>(v+pts[i+1][k])/2),11));inserting=drag>=0}
@@ -351,7 +320,7 @@ export function createScene(host,events){
  }
  function pointerUp(e){const before=down;down=null;if(!before)return;const hit=resolveHit(e),moved=Math.hypot(e.clientX-before[0],e.clientY-before[1]);
   if(drag>=0){const index=drag,insert=inserting;drag=-1;inserting=false;dragHit=null;controls.enabled=true;
-   if(hit.point&&(moved>3||insert)){if(insert)events.insert(index+1,hit.point,hit.normal);else events.move(index,hit.point,hit.normal)}invalidate();return}
+   if(hit.point&&(moved>3||insert)){events.editPoint(insert?"insert":"move",insert?index+1:index,hit.point,hit.normal)}invalidate();return}
   if(dragDraw){const start=dragDraw.start;dragDraw=null;controls.enabled=true;
    if(state.tool==="free"){const s=stroke,end=aim(e);stroke=null;shapePreview=null;invalidate();if(s&&end.point){s.points.push(end.point);s.normals.push(end.normal||null)}if(s&&s.points.length>=2&&routeLength(s.points)>.1){const keep=simplify(s.points);events.shape({points:keep.map(i=>s.points[i]),normals:keep.map(i=>s.normals[i])})}return}
    if(moved>6){const end=aim(e);if(end.point)commitShape(start,end,e.shiftKey);else{shapePreview=null;invalidate()}return}}
@@ -405,7 +374,7 @@ export function createScene(host,events){
   if(state.mode!=="edit"&&state.mode!=="cableEdit")return;
   const {c,pts}=editTarget(),{x,y}=resolveHit(e);if(!pts||pts.length<3)return;
   const index=pts.findIndex((p,i)=>{if(c&&((!i&&c.from)||(i===pts.length-1&&c.to)))return false;const q=screen(vec(p));return Math.hypot(x-q.x,y-q.y)<17});
-  if(index>=0)events.removePoint(index);
+  if(index>=0)events.editPoint("remove",index);
  }
  const plantImages=new Map();
  const pointerMove=e=>{lastMove=e;if(!moveRaf)moveRaf=requestAnimationFrame(()=>{moveRaf=0;if(disposed||!lastMove)return;
@@ -414,9 +383,9 @@ export function createScene(host,events){
  const cancel=()=>{down=null;drag=-1;dragDraw=null;stroke=null;dragHit=null;controls.enabled=true;invalidate()};
  surface.addEventListener("pointerdown",pointerDown,true);surface.addEventListener("pointerup",pointerUp);surface.addEventListener("pointermove",pointerMove);surface.addEventListener("pointerleave",pointerLeave);surface.addEventListener("dblclick",doubleClick);surface.addEventListener("pointercancel",cancel);
  const visibility=()=>{if(!document.hidden)invalidate()};document.addEventListener("visibilitychange",visibility);window.addEventListener("focus",visibility);
- return {previewPlant,clearPlantPreview,lawnAt,canRoute(row,group){if(!fitted||!state.design)return true;if(group==="fixtures"&&row.shape==="run"&&!row.plant&&row.points.length>1){const n=guideNormal(row.mount);return !fitted.route(row.points,{normals:n?row.points.map(()=>n):row.normals,window:true}).obstructed}if(group==="cables"&&row.attachment!=="free")return !fitted.route(terminals(row,state.design).raw,{radius:row.width/2,normals:row.normals}).obstructed;return true},length(id){const p=cache.get("c/"+id)||cache.get("f/"+id);return p?routeLength(p):null},update(s){if(state.mode==="plant"&&s.mode!=="plant")clearPlantPreview();const design=placeBodies(s.design),refresh=design!==state.design||s.night!==state.night;const preview=s.draft!==state.draft||refresh;
+ return {previewPlant,clearPlantPreview,lawnAt,update(s){if(state.mode==="plant"&&s.mode!=="plant")clearPlantPreview();const design=routes.placeBodies(s.design),refresh=design!==state.design||s.night!==state.night;const preview=s.draft!==state.draft||refresh;
   // A new tool starts clean; while a drag tool is active the right button orbits instead of panning.
-  if(s.mode!==state.mode||s.tool!==state.tool){anchor=null;stroke=null;dragDraw=null;shapePreview=null;feature=null;controls.enabled=true;controls.mouseButtons.RIGHT=s.mode==="draw"&&dragTools.includes(s.tool)?T.MOUSE.ROTATE:T.MOUSE.PAN}
+  if(s.mode!==state.mode||s.tool!==state.tool||s.active!==state.active){cancel();anchor=null;stroke=null;dragDraw=null;shapePreview=null;feature=null;controls.enabled=true;controls.mouseButtons.RIGHT=s.mode==="draw"&&dragTools.includes(s.tool)?T.MOUSE.ROTATE:T.MOUSE.PAN}
   state={...s,design};refreshPreview();if(preview){const pts=s.draft||[];previewPath=pts.length>=2&&fitted&&s.routeStyle!=="hanging"?fitted.route(pts,{radius:s.mode==="cable"?.02:0,window:s.mode==="draw"}):routedPoints(pts,s.routeStyle||"corners",s.routeSag)}if(refresh)rebuild();else invalidate()},preset,focus,zoom(f){const offset=cam.position.clone().sub(controls.target);offset.setLength(Math.min(controls.maxDistance,Math.max(controls.minDistance,offset.length()*f)));fly(controls.target.clone().add(offset),controls.target.clone(),220)},
  dispose(){disposed=true;gestures();cancelAnimationFrame(raf);cancelAnimationFrame(moveRaf);observer.disconnect();controls.dispose();stage.dispose();document.removeEventListener("visibilitychange",visibility);window.removeEventListener("focus",visibility);scene.traverse(o=>{o.geometry?.dispose();for(const m of [].concat(o.material||[]))m.dispose()});gl?.dispose();host.replaceChildren()}}
 }

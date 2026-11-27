@@ -17,7 +17,7 @@ export function fitCord(surface,raw,c,targetNormal){
  candidates.push([a,b]);
  let best=null,bestLength=Infinity;
  for(const candidate of candidates){if(routeLength(candidate)>=bestLength)continue;const path=surface.route(candidate,{radius:options.radius});if(path.obstructed)continue;
-  const length=routeLength(path);if(length<bestLength){best=path;bestLength=length}
+  const length=routeLength(path);if(length<bestLength){best=path;best.waypoints=candidate;bestLength=length}
  }return best||original;
 }
 

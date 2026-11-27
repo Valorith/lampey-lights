@@ -9,12 +9,65 @@ import {sample,showSchema,wirePoints,mounts} from "../lib/show.js";
 import {windowOutlines,windowFrames,guideNormal,clearWindowTrim} from "../lib/window-mounts.js";
 import {propertySurface} from "../lib/surface-fit.js";
 import {depthAtPoints} from "../lib/software-depth.js";
+import {createRouteGeometry} from "../lib/route-geometry.js";
+import {patchCSV} from "../lib/patch-csv.js";
+import {editRoutePoint} from "../lib/route-edit.js";
+import {cordLabel, fixtureFootage, measuredLength, routeLength} from "../lib/stage.js";
 const v=a=>new Vector3(...a);
 function block(size,pos){const m=new Mesh(new BoxGeometry(...size));m.position.set(...pos);m.updateMatrixWorld();return m}
 function sampled(path,fn){for(let i=1;i<path.length;i++){const a=v(path[i-1]),b=v(path[i]),num=Math.max(1,Math.ceil(a.distanceTo(b)/.017));for(let j=0;j<=num;j++)fn(a.clone().lerp(b,j/num))}}
 const bytes=readFileSync(new URL("../public/property.glb",import.meta.url));
 const {scene}=await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),"");
 scene.updateMatrixWorld(true);const meshes=[];scene.traverse(m=>{if(m.isMesh)meshes.push(m)});const actual=propertySurface(meshes);
+test("editing a closed window keeps its seam and surface normals through save and reopen",()=>{
+ const design=showSchema.parse(sample()), mount=windowFrames.find(f=>f.name==="Upper front window 1").id;
+ const original={...design.fixtures[0],mount,points:windowOutlines[mount]};
+ const point=original.points[0].map((x,i)=>i===1?x+.08:x), normal=guideNormal(mount);
+ const moved=editRoutePoint(original,"move",0,point,normal);
+ assert.deepEqual(moved.points.at(-1),point);
+ assert.deepEqual(moved.normals,moved.points.map(()=>normal));
+ assert.notDeepEqual(original.points[0],point);
+ const inserted=editRoutePoint(moved,"insert",1,point.map((v,i)=>i===1?v+.1:v),normal);
+ const removed=editRoutePoint(inserted,"remove",inserted.points.length-1);
+ assert.deepEqual(removed.points[0],removed.points.at(-1));
+ const saved=showSchema.parse(JSON.parse(JSON.stringify({...design,fixtures:[moved]})));
+ const geometry=createRouteGeometry(actual), path=geometry.fixture(saved.fixtures[0]);
+ assert.ok(measuredLength(path)>0);
+ const frame=windowFrames.find(f=>f.id===mount);
+ sampled(path,p=>assert.ok(p.z>=frame.max[2]+.026));
+ assert.equal(fixtureFootage(saved.fixtures[0],saved,geometry)[0],(routeLength(path)/.3048).toFixed(1));
+});
+test("a blocked cord edit identifies its failing span and leaves the accepted path intact",()=>{
+ const geometry=createRouteGeometry(propertySurface([block([4,4,4],[0,0,0])]));
+ const design={devices:[],fixtures:[],cables:[]};
+ const cord={id:"c",kind:"power",points:[[0,0,3],[1,0,3]],width:.04,style:"corners"};
+ const savedLength=measuredLength(geometry.cable(cord,design));
+ const candidate=editRoutePoint(cord,"move",1,[0,0,0],null);
+ const path=geometry.cable(candidate,design);
+ assert.ok(path.obstructed && path.blockedSegments.length);
+ assert.equal(measuredLength(path),null);
+ assert.equal(cordLabel(candidate,path),"Unmeasured");
+ assert.equal(measuredLength(geometry.cable(cord,design)),savedLength);
+ assert.equal(editRoutePoint({...cord,from:"d/box"},"move",0,[0,0,0],null),null);
+});
+test("curved lead footage and extra cord agree across the scene, export and saved designs",()=>{
+ const design=showSchema.parse(sample()), geometry=createRouteGeometry(actual);
+ const f=design.fixtures[0], estimated=geometry.cables(design).find(c=>c.to==="f/"+f.id);
+ assert.equal(fixtureFootage(f,design,geometry)[4],"Estimated");
+ const saved=geometry.editableCable(estimated,design);
+ const next={...design,cables:[{...saved,style:"hanging",slackFt:2.5}]};
+ const reopened=showSchema.parse(JSON.parse(JSON.stringify(next)));
+ const cable=reopened.cables[0], path=geometry.cable(cable,reopened);
+ const ft=routeLength(path)/.3048;
+ assert.ok(ft>0 && !path.obstructed);
+ assert.deepEqual(fixtureFootage(reopened.fixtures[0],reopened,geometry).slice(1),
+  [ft.toFixed(1),"2.5",(ft+2.5).toFixed(1),"Traced"]);
+ const [head,first]=patchCSV(reopened,geometry).split("\r\n");
+ assert.ok(head.includes('"Lead route (ft)","Extra cord (ft)","Total lead cord (ft)"'));
+ assert.ok(first.endsWith('"'+ft.toFixed(1)+'","2.5","'+(ft+2.5).toFixed(1)+'","Traced"'));
+ assert.equal(cordLabel(cable,path),ft.toFixed(1)+" ft + 2.5 ft extra = "+(ft+2.5).toFixed(1)+" ft");
+ assert.equal(fixtureFootage({...f,points:[],device:""},design,geometry)[0],"");
+});
 test("legacy glass-depth red window run clears the shipped sill from front and oblique views",()=>{
  const f=windowFrames.find(f=>f.name==="Upper front window 1"),glass=f.paneMax[2],sill=f.max[2];
  assert.ok(sill-glass>.045);

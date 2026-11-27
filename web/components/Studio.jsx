@@ -2,20 +2,21 @@
 import "../app/stage.css";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {useProjects} from "../hooks/use-projects";
-import {id,sample,showSchema,defaultNet,defaultDevice,defaultFixture,fixtures,hardware,feet,length} from "../lib/show";
+import {id,sample,showSchema,defaultNet,defaultDevice,defaultFixture,fixtures,hardware,feet} from "../lib/show";
 import {review,patchText} from "../lib/patch";
 import {Modal,Field,FixtureForm,NetworkForm,DeviceForm} from "./forms";
 import {Toolbox,PlantForm,DressForm,CableForm} from "./toolbox";
+import {editRoutePoint} from "../lib/route-edit.js";
 import {sceneProp,scaleProp,rotateProp,updateProp} from "../lib/prop-transform";
 import {Controller} from "./controller";
 import {newPlant,mountedFixture,species} from "../lib/garden";
-import {defaultCable,sceneCables,cablePoints,cableKinds,routeLength,routedPoints,endpoints,aimAt,detachCables} from "../lib/stage";
+import {defaultCable,sceneCables,cablePoints,cableKinds,measuredLength,cordLabel,endpoints,aimAt,detachCables} from "../lib/stage";
 import {Network,Patch,saveFile,exportPatch} from "./records";
 import {I,Tool,Kbd,Toaster,useToasts,usePref} from "./ui-kit";
 import {SceneList} from "./scene-list";
 import {CommandPalette,Shortcuts} from "./command-palette";
 import {DrawBar,PropBar,strandPresets,presetSpacing,toolKeys} from "./draw-bar";
-import {drawTools,toolDefaults,lightCount,pathLength,seriesName,wallYaw} from "../lib/draw-tools";
+import {drawTools,toolDefaults,lightCount,seriesName,wallYaw} from "../lib/draw-tools";
 
 const tabs=[["Layout","layout"],["Network","network"],["Patch","patch"]];
 const views=["Street","Street trees","Front","Driveway","Back stairs","Pool","Rear elevation","Overhead"];
@@ -23,7 +24,7 @@ const saveKind=s=>s==="Saved"?"ok":/Saving|Opening/.test(s)?"busy":s==="Saved on
 const Bulbs=()=><span className="bulbs" aria-hidden="true"><i/><i/><i/><i/><i/></span>;
 
 function Viewport({state,events,engine}){const host=useRef(null),handlers=useRef(events),latest=useRef(state);handlers.current=events;latest.current=state;
- useEffect(()=>{let cancel=false,instance;import("./scene-engine").then(({createScene})=>{if(cancel)return;instance=createScene(host.current,Object.fromEntries(["pick","move","place","anchor","ready","fail","propPreview","propDrop","propTransform","shape","finish","insert","removePoint"].map(k=>[k,(...args)=>handlers.current[k](...args)])));engine.current=instance;instance.update(latest.current)}).catch(()=>handlers.current.fail("Could not start 3D view."));return()=>{cancel=true;instance?.dispose();engine.current=null}},[]);
+ useEffect(()=>{let cancel=false,instance;import("./scene-engine").then(({createScene})=>{if(cancel)return;instance=createScene(host.current,Object.fromEntries(["pick","editPoint","place","anchor","ready","fail","propPreview","propDrop","propTransform","shape","finish"].map(k=>[k,(...args)=>handlers.current[k](...args)])));engine.current=instance;instance.update(latest.current)}).catch(()=>handlers.current.fail("Could not start 3D view."));return()=>{cancel=true;instance?.dispose();engine.current=null}},[]);
  useEffect(()=>{engine.current?.update(state)},[state,engine]);return <div className="sceneHost" ref={host}/>
 }
 
@@ -32,6 +33,7 @@ export default function Studio(){
  const [tab,setTab]=useState("Layout"),[dialog,dlg]=useState(null),[sel,pick]=useState(""),[hover,setHover]=useState(""),[search,filter]=useState(""),[play,setPlay]=useState(false),[view,setView]=useState("Street"),[mode,setMode]=useState("select"),[draft,setDraft]=useState([]),[pending,setPending]=useState(null),[ready,setReady]=useState(false),[mobile,setMobile]=useState(false),[projectName,setProjectName]=useState(""),[full,setFull]=useState(false);
  const [night,setNight]=usePref("night",true),[labels,setLabels]=usePref("labels",false),[wiring,setWiring]=usePref("wiring",false),[panel,setPanel]=usePref("panel",true);
  const [dragPreview,setDragPreview]=useState(null);
+ const [routes,setRoutes]=useState(null);
  const sceneDesign=useMemo(()=>dragPreview&&dragPreview.base===design?updateProp(design,dragPreview.prop.group,dragPreview.row):design,[design,dragPreview]);
  // Strand drawing: the active tool and its options persist; series keeps the tool live for one strand after another.
  const [tool,setTool]=usePref("tool","path"),[toolOpts,setToolOpts]=usePref("toolOpts",toolDefaults),[spacing,setSpacing]=usePref("spacing",3),[preset,setPresetName]=usePref("preset","Pixel strand");
@@ -40,13 +42,13 @@ export default function Studio(){
  const {toasts,toast,dismiss,settle}=useToasts();
  const engine=useRef(null),file=useRef(null);const issues=useMemo(()=>design?review(design):[],[design]);
  const f=design?.fixtures.find(v=>v.id===sel);
- const d=design?.devices.find(row=>row.id===sel),p=design?.plants?.find(row=>row.id===sel),c=useMemo(()=>design?sceneCables(design).find(row=>row.id===sel):null,[design,sel]);
+ const d=design?.devices.find(row=>row.id===sel),p=design?.plants?.find(row=>row.id===sel),c=useMemo(()=>design?(routes?.cables(design)??sceneCables(design)).find(row=>row.id===sel):null,[design,sel,routes]);
  const cableDraft=useMemo(()=>{if(mode!=="cable"||!pending||!design)return draft;const ends=endpoints(design);return [ends.find(e=>e.id===pending.from)?.point,...draft,ends.find(e=>e.id===pending.to)?.point].filter(Boolean)},[mode,pending,design,draft]);
  const ghost=useMemo(()=>!pending?null:mode==="draw"?{color:pending.color,count:pending.count,spacing:series?spacing:0}:mode==="prop"?{...pending,yaw:turn??pending.yaw,autoYaw:turn===null&&pending.shape!=="flood"}:mode==="plant"?pending:null,[pending,mode,series,spacing,turn]);
- const sceneState=useMemo(()=>({design:sceneDesign,savedDesign:design,sel,hover,night,play,labels,wiring,mode,tool:drawTools[tool]?tool:"path",toolOpts,ghost,draft:cableDraft,routeStyle:mode==="cable"?pending?.style:null,routeSag:pending?.sag,routeColor:pending?.color}),[sceneDesign,design,sel,hover,night,play,labels,wiring,mode,tool,toolOpts,ghost,cableDraft,pending]);
+ const sceneState=useMemo(()=>({active:tab==="Layout",lift,design:sceneDesign,savedDesign:design,sel,hover,night,play,labels,wiring,mode,tool:drawTools[tool]?tool:"path",toolOpts,ghost,draft:cableDraft,routeStyle:mode==="cable"?pending?.style:null,routeSag:pending?.sag,routeColor:pending?.color}),[tab,lift,sceneDesign,design,sel,hover,night,play,labels,wiring,mode,tool,toolOpts,ghost,cableDraft,pending]);
  const reset=()=>{setDragPreview(null);setMode("select");setDraft([]);setPending(null);setSeries(false);setRepeat(false);setTurn(null)};
  useEffect(()=>{pick("");reset();dlg(null);setPlay(false);filter("")},[store.id]);
- useEffect(()=>{if(tab!=="Layout"){setPlay(false);setReady(false);setView("Street");reset()}},[tab]);
+ useEffect(()=>{if(tab!=="Layout"){setPlay(false);reset()}},[tab]);
  useEffect(()=>{const fn=e=>keys.current?.(e);window.addEventListener("keydown",fn);return()=>window.removeEventListener("keydown",fn)},[]);
  useEffect(()=>{const fn=()=>setFull(!!document.fullscreenElement);document.addEventListener("fullscreenchange",fn);return()=>document.removeEventListener("fullscreenchange",fn)},[]);
  if(!design)return <main className="opening"><img src="/favicon.svg" width="52" height="52" alt=""/><Bulbs/><span>{store.status==="Could not open project"?store.status:"Opening Lampey Lights"}</span></main>;
@@ -72,7 +74,7 @@ export default function Studio(){
  function net(n){dlg({kind:"network",v:n||defaultNet(),existing:!!n})}
  function box(d,netId){dlg({kind:"device",v:d||defaultDevice(netId||design.networks[0]?.id),existing:!!d})}
  function openRecord(v){const fx=design.fixtures.find(x=>x.id===v),d=design.devices.find(x=>x.id===v),n=design.networks.find(x=>x.id===v);if(fx)edit(fx);else if(d)box(d);else if(n)net(n)}
- function cableForm(v,existing=false){setWiring(true);dlg({kind:"cable",v,existing})}
+ function cableForm(v,existing=false){setWiring(true);dlg({kind:"cable",v:routes?.editableCable(v,design)??v,existing})}
  function plantLights(plant,fixture){dlg({kind:"dress",v:fixture||{...defaultFixture(),name:plant.name+" lights",zone:"Front yard",plant:plant.id,endPlant:plant.id,dressing:["deciduous","birch","winterberry"].includes(plant.kind)?"pendant":"wrap",branchA:0,branchB:4,drop:.8,turns:5,count:60,mount:"",points:[]}})}
  function placeEquipment(model){
   const m=hardware[model],protocol=m.net.includes("sacn")&&(!m.ports||m.net.length===1)?"sacn":m.net.includes("elor")?"elor":m.net[0];
@@ -106,8 +108,9 @@ export default function Studio(){
   if(pts.length<2)return;
   if(pts.length>160){setError("A strand can have up to 160 points. Remove a point before closing the loop.");return}
   const row={...pending,mount:mount||"",points:pts,normal:undefined,normals:mount?undefined:normals?.filter((_,i)=>keep[i]),plant:undefined,endPlant:undefined,dressing:undefined};
-  if(series&&spacing)row.count=lightCount(pathLength(pts),spacing);
-  if(engine.current?.canRoute(row,"fixtures")===false){setError("This strand crosses the property. Add a point on the outside corner.");return}
+  const path=checkedPath("fixtures",row);
+  if(!path)return;
+  if(series&&spacing)row.count=lightCount(measuredLength(path),spacing);
   upsert("fixtures",row);pick(row.id);setDraft([]);draftNormals.current=[];
   if(!series){reset();return}
   toast("Added "+row.name+" · "+row.count+" lights",{kind:"success",id:"strand",action:{label:"Undo",run:()=>store.undo()}});
@@ -117,20 +120,35 @@ export default function Studio(){
   if(mode==="draw"){addStrand(draft,[...draftNormals.current]);return}
   if(!pending||cableDraft.length<2)return;
   const row={...pending,points:cableDraft,normals:[...(pending.from?[null]:[]),...draftNormals.current,...(pending.to?[null]:[])]};
-  if(engine.current?.canRoute(row,"cables")===false){setError("This route crosses the property. Add a waypoint on the outside corner.");return}
+  if(!checkedPath("cables",row))return;
   upsert("cables",row);pick(row.id);reset()
  }
  function strandFor(name){const p=strandPresets.find(v=>v[0]===name)||strandPresets[0];return {name:seriesName(p[0],design.fixtures.map(f=>f.name)),type:p[2],count:p[3],color:p[4]}}
  function choosePreset(name){setPresetName(name);setSpacing(presetSpacing[name]??spacing);if(pending)setPending({...pending,...strandFor(name)})}
- // Insert or remove a point on the strand or cable being reshaped.
- function reshape(index,point,normal){
-  if(c&&mode==="cableEdit"){const points=cablePoints(c,design),normals=points.map((_,j)=>c.normals?.[j]||null);
-   if(point){points.splice(index,0,[point[0],point[1]+lift,point[2]]);normals.splice(index,0,lift?null:normal)}else{points.splice(index,1);normals.splice(index,1)}
-   upsert("cables",{...c,points,normals})}
-  else if(f&&f.shape==="run"){const points=f.points.slice(),normals=points.map((_,j)=>f.normals?.[j]||null);
-   if(point){points.splice(index,0,point);normals.splice(index,0,normal)}else{points.splice(index,1);normals.splice(index,1)}
-   upsert("fixtures",{...f,points,normals,mount:"",plant:undefined,endPlant:undefined,dressing:undefined})}
+ function checkedPath(group,row){
+  if(!routes){setError("Wait for the property to load before editing a route.");return null}
+  const path=group==="cables"?routes.cable(row,design):routes.fixture(row);
+  if(path.obstructed){setError("Route blocked. Add a waypoint on the outside corner.");return null}
+  return path;
  }
+ function editPoint(action,index,point,normal){
+  const cable=mode==="cableEdit",target=cable&&c?routes?.editableCable(c,design):f;
+  if(!target)return;
+  const row=editRoutePoint(target,action,index,point,normal,lift);
+  const group=cable?"cables":"fixtures";
+  if(row&&checkedPath(group,row))upsert(group,row);
+ }
+ function saveCable(row,redraw){
+  if(redraw){begin(row,"cable");return}
+  const {inferred,...saved}=row;
+  if(checkedPath("cables",saved)){upsert("cables",saved);pick(saved.id);close()}
+ }
+ function saveFixture(row,method){
+  if(method){begin(row,method);return}
+  if(row.shape==="run"&&row.points.length&&!checkedPath("fixtures",row))return;
+  upsert("fixtures",row);pick(row.id);close();
+ }
+ const strandMeters=f?.shape==="run"?measuredLength(routes?.fixture(f)):null;
  function remove(group,v){dlg({kind:"confirm",title:"Remove "+v.name+"?",detail:group==="networks"?"Boxes on this network will also be removed. Their fixtures will be kept as unpatched.":group==="devices"?"Fixtures assigned to this box will be kept as unpatched.":group==="plants"?"Mounted lights will stay at their current positions.":"Remove this item from the design?",action:()=>{
  if(group==="cables"&&v.inferred){const fx=design.fixtures.find(f=>"f/"+f.id===v.to);if(fx)upsert("fixtures",{...fx,autoCord:false});pick("");close();removed(v);return}
  let updated={...design,[group]:design[group].filter(x=>x.id!==v.id)};
@@ -194,7 +212,7 @@ export default function Studio(){
   if(run){e.preventDefault();run()}
  };
 
- const controllerProps=d&&{box:d,design,issues,lockButton,save:v=>upsert("devices",{...d,name:v.name,model:v.model,unit:v.unit,net:v.net,ip:v.ip,portCount:v.portCount}),close:()=>{close();pick("")},edit:()=>box(d),move:()=>begin(d,"box"),details:()=>dlg({kind:"controller"}),route:routeOutput,editCable:c=>cableForm(c,true),assign:(id,port)=>{const fx=design.fixtures.find(f=>f.id===id);if(fx)upsert("fixtures",{...fx,device:d.id,port})},toggle:port=>{const ports=d.offPorts||[];upsert("devices",{...d,offPorts:ports.includes(port)?ports.filter(n=>n!==port):[...ports,port]})}};
+ const controllerProps=d&&{box:d,routes,design,issues,lockButton,save:v=>upsert("devices",{...d,name:v.name,model:v.model,unit:v.unit,net:v.net,ip:v.ip,portCount:v.portCount}),close:()=>{close();pick("")},edit:()=>box(d),move:()=>begin(d,"box"),details:()=>dlg({kind:"controller"}),route:routeOutput,editCable:c=>cableForm(c,true),assign:(id,port)=>{const fx=design.fixtures.find(f=>f.id===id);if(fx)upsert("fixtures",{...fx,device:d.id,port})},toggle:port=>{const ports=d.offPorts||[];upsert("devices",{...d,offPorts:ports.includes(port)?ports.filter(n=>n!==port):[...ports,port]})}};
  const historyAdd=r=>edit(null,{name:r[1]||r[0],reference:r[0],zone:/porch|driveway/i.test(r[2])?r[2]:"Unsorted",notes:r[2],state:/bad|unknown|something plugged/i.test(r.join(" "))?"Needs check":"Planned",type:/pixie/i.test(r.join(" "))?"pixel":/floo[d t]|Box 28/i.test(r.join(" "))?"dc":"ac",shape:/floo[d t]|Box 28/i.test(r.join(" "))?"flood":/pixie arch/i.test(r.join(" "))?"arch":"run",points:[],color:/blue/i.test(r[1])?"#88bbff":/red/i.test(r[1])?"#ff7773":"#ffd394"});
  const modeText={draw:"Click along the surface to draw the strand",box:"Click a surface to place the equipment",plant:"Click the ground to place the planting",aim:"Click where the beam should land",cable:"Click to add bends along the route",cableEdit:"Drag a point to move it · drag a midpoint to add one · double-click to remove",edit:"Drag a point to move it · drag a midpoint to add one · double-click to remove",prop:"Click a surface to place the fixture"}[mode]||"Click a surface";
  const points=mode==="draw"?draft.length:mode==="cable"?cableDraft.length:null;
@@ -215,7 +233,7 @@ export default function Studio(){
    {group:"Actions",label:"Projects",icon:"folder",run:chooseProject},
    {group:"Actions",label:"Export project",icon:"download",run:exportProject},
    {group:"Actions",label:"Import project",icon:"upload",run:()=>file.current.click()},
-   {group:"Actions",label:"Export patch CSV",icon:"download",run:()=>exportPatch(design)},
+   {group:"Actions",label:"Export patch CSV",icon:"download",run:()=>routes?exportPatch(design,routes):setError("The property is still loading.")},
    {group:"Actions",label:"Print labels",icon:"printer",run:()=>window.print()},
    {group:"Actions",label:"Keyboard shortcuts",icon:"keyboard",keys:"?",run:()=>dlg({kind:"shortcuts"})},
    ...tabs.map(([t,icon],i)=>({group:"Go to",label:t,icon,keys:String(i+1),run:()=>setTab(t)})),
@@ -244,13 +262,13 @@ export default function Studio(){
    <Tool n="keyboard" label="Keyboard shortcuts" tip="Shortcuts · ?" pos="down-end" className="helpBtn" action={()=>dlg({kind:"shortcuts"})}/>
   </div>
  </header>
- {tab==="Layout"?<div className={"workspace"+(panel?"":" collapsed")}>
+ <div style={tab==="Layout"?undefined:{display:"none"}} className={"workspace"+(panel?"":" collapsed")}>
   <SceneList design={design} sel={sel} search={search} setSearch={filter} searchRef={searchBox} issues={issues} select={select} frame={key=>{select(key);setTimeout(()=>frame(key),30)}} setVisible={setVisible} hover={setHover} openToolbox={()=>dlg({kind:"tools",tab:"Lights"})} collapse={()=>setPanel(false)} closeMobile={()=>setMobile(false)} open={mobile}/>
   {mobile&&<div className="scrim" onClick={()=>setMobile(false)}/>}
   <main className="editor"><h1 className="srOnly">Property layout</h1>
   <section ref={viewport} data-mode={mode} className={"viewport "+(night?"night":"day")+(play?" playing":"")}>
    <div className="sky" aria-hidden="true"><i className="skyNight"/><i className="skyDay"/><i className="stars"/></div>
-   <Viewport state={sceneState} engine={engine} events={{propTransform,propDrop,propPreview:target=>setDragPreview(target?{...target,base:design}:null),pick(v){pick(v)},anchor,ready:()=>setReady(true),fail:setError,place,finish,shape:({points,normals,mount})=>addStrand(points,normals,mount),insert:reshape,removePoint:index=>reshape(index),move(i,p,normal){if(c&&mode==="cableEdit"){const points=cablePoints(c,design);points[i]=[p[0],p[1]+lift,p[2]];upsert("cables",{...c,points,normals:points.map((_,j)=>i===j?(lift?null:normal):c.normals?.[j]||null)})}else if(f){const points=f.points.slice();points[i]=p;upsert("fixtures",{...f,points,normal:f.shape!=="run"?normal:f.normal,normals:points.map((_,j)=>i===j?normal:f.normals?.[j]||null),mount:"",plant:undefined,endPlant:undefined,dressing:undefined})}}}}/>
+   <Viewport state={sceneState} engine={engine} events={{propTransform,propDrop,propPreview:target=>setDragPreview(target?{...target,base:design}:null),pick(v){pick(v)},anchor,ready:geometry=>{setRoutes(geometry);setReady(true)},fail:setError,place,finish,shape:({points,normals,mount})=>addStrand(points,normals,mount),editPoint}}/>
    <div className="viewBar">
     <div className="barGroup">
      <Tool n="sidebar" label="Show scene panel" tip="Scene panel · [" pos="down-start" className="glassBtn panelBtn" action={openPanel}/>
@@ -265,9 +283,9 @@ export default function Studio(){
    {!ready&&<div className="loading" role="status"><Bulbs/>Loading property</div>}
    {mode==="select"&&d&&<Controller key={d.id} {...controllerProps}/>}
    <div className="stageBottom">
-    {f&&mode==="select"&&<div className="selection" key={f.id}><i className="lamp big" style={{"--c":f.color}}/><div className="selText"><strong>{f.name}</strong><small>{patchText(f,design)} · {f.count} lights{f.shape==="run"&&f.points.length>1?" · "+feet(engine.current?.length(f.id)??length(f)):""}</small></div><button onClick={()=>edit(f)}><I n="edit" size={15}/>Edit</button>{f.shape==="flood"&&f.points.length>0&&<button onClick={()=>begin(f,"aim")}><I n="target" size={15}/>Aim</button>}{f.plant&&<button onClick={()=>plantLights(null,f)}>Mounting</button>}{f.points.length>0&&!f.plant?<button disabled={f.locked} onClick={()=>setMode("edit")}><I n="move" size={15}/>Move points</button>:!f.points.length&&<button className="primary" onClick={()=>begin(f,f.shape==="run"?"draw":"prop")}><I n="pin" size={15}/>Place</button>}{tail(f,"fixtures",!f.plant)}</div>}
+    {f&&mode==="select"&&<div className="selection" key={f.id}><i className="lamp big" style={{"--c":f.color}}/><div className="selText"><strong>{f.name}</strong><small>{patchText(f,design)} · {f.count} lights{f.shape==="run"&&f.points.length>1?" · "+(strandMeters===null?"Unmeasured":feet(strandMeters)):""}</small></div><button onClick={()=>edit(f)}><I n="edit" size={15}/>Edit</button>{f.shape==="flood"&&f.points.length>0&&<button onClick={()=>begin(f,"aim")}><I n="target" size={15}/>Aim</button>}{f.plant&&<button onClick={()=>plantLights(null,f)}>Mounting</button>}{f.points.length>0&&!f.plant?<button disabled={f.locked} onClick={()=>setMode("edit")}><I n="move" size={15}/>Move points</button>:!f.points.length&&<button className="primary" onClick={()=>begin(f,f.shape==="run"?"draw":"prop")}><I n="pin" size={15}/>Place</button>}{tail(f,"fixtures",!f.plant)}</div>}
     {mode==="select"&&p&&<div className="selection" key={p.id}><span className="selIcon"><I n="tree"/></span><div className="selText"><strong>{p.name}</strong><small>{species[p.kind]} · {feet(p.height)}</small></div><button onClick={()=>plantLights(p)}><I n="strand" size={15}/>Mount lights</button><button onClick={()=>dlg({kind:"plant",v:p})}><I n="edit" size={15}/>Edit</button><button disabled={p.locked} onClick={()=>begin(p,"plant")}><I n="move" size={15}/>Move</button>{tail(p,"plants",true)}</div>}
-    {mode==="select"&&c&&<div className="selection" key={c.id}><i className="wire big" style={{"--c":c.color}}/><div className="selText"><strong>{c.name}</strong><small>{c.inferred?"Estimated · ":""}{feet(engine.current?.length(c.id)??routeLength(routedPoints(cablePoints(c,design),c.style,c.sag)))} · {cableKinds[c.kind].name}</small></div><button onClick={()=>cableForm(c,true)}><I n="edit" size={15}/>Edit</button><button onClick={()=>{setLift(0);setMode("cableEdit")}}><I n="move" size={15}/>Move points</button>{tail(c,c.inferred?null:"cables",false)}</div>}
+    {mode==="select"&&c&&<div className="selection" key={c.id}><i className="wire big" style={{"--c":c.color}}/><div className="selText"><strong>{c.name}</strong><small>{c.inferred?"Estimated · ":""}{cordLabel(c,routes?.cable(c,design))} · {cableKinds[c.kind].name}</small></div><button onClick={()=>cableForm(c,true)}><I n="edit" size={15}/>Edit</button><button onClick={()=>{setLift(0);setMode("cableEdit")}}><I n="move" size={15}/>Move points</button>{tail(c,c.inferred?null:"cables",false)}</div>}
     {mode==="draw"&&pending?<DrawBar tool={sceneState.tool} setTool={chooseTool} opts={toolOpts} setOpts={setToolOpts} fixture={pending} setFixture={setPending} preset={preset} setPreset={choosePreset} spacing={spacing} setSpacing={setSpacing} series={series} points={draft.length} back={back} finish={finish} done={reset}/>:
     mode==="prop"&&pending?<PropBar fixture={pending} setFixture={setPending} turn={turn} setTurn={setTurn} repeat={repeat} setRepeat={setRepeat} cancel={reset}/>:
     <div className={"dock"+(mode==="select"?"":" busy")} key={mode==="select"?"idle":"busy"}>{mode==="select"?<>
@@ -285,17 +303,17 @@ export default function Studio(){
     </>}</div>}
    </div>
    <div className="hint">{mode==="select"&&activeProp&&!activeProp.row.locked?"Drag to move · Ctrl + wheel to scale · Alt + wheel to rotate":"Drag to orbit · Scroll to zoom · Right-drag to pan"}</div>
-  </section></main></div>:
- tab==="Network"?<Network design={design} issues={issues} editNet={net} editBox={box} open={openRecord} locate={d=>{setWiring(true);begin(d,"box")}}/>:<Patch design={design} issues={issues} edit={edit} open={openRecord} setState={(fx,state)=>upsert("fixtures",{...fx,state})} historyAdd={historyAdd}/>}
+  </section></main></div>
+ {tab==="Layout"?null:tab==="Network"?<Network design={design} issues={issues} editNet={net} editBox={box} open={openRecord} locate={d=>{setWiring(true);begin(d,"box")}}/>:<Patch routes={routes} design={design} issues={issues} edit={edit} open={openRecord} setState={(fx,state)=>upsert("fixtures",{...fx,state})} historyAdd={historyAdd}/>}
  <input type="file" hidden ref={file} accept=".json,application/json" onChange={importFile}/>
  {dialog?.kind==="palette"&&<CommandPalette items={palette()} close={close}/>}
  {dialog?.kind==="shortcuts"&&<Shortcuts close={close}/>}
  {dialog?.kind==="tools"&&<Toolbox engine={engine} dropPlant={placePlant} openLayout={()=>setTab("Layout")} initial={dialog.tab} close={close} equipment={placeEquipment} cable={k=>cableForm(defaultCable(k))} plant={k=>begin(newPlant(k),"plant")} light={([name,shape,type,count,color])=>{const v={...defaultFixture(),name,zone:"Front yard",shape,type,count,color,mount:"porch.fascia",points:[]};if(shape==="run"){close();drawStrand(name)}else begin(v,"prop")}}/>}
- {dialog?.kind==="cable"&&<CableForm initial={dialog.v} existing={dialog.existing} design={design} close={close} remove={()=>remove("cables",dialog.v)} commit={(v,draw)=>{if(draw)begin(v,"cable");else{upsert("cables",v);pick(v.id);close()}}}/>}
+ {dialog?.kind==="cable"&&<CableForm initial={dialog.v} existing={dialog.existing} design={design} close={close} remove={()=>remove("cables",dialog.v)} commit={saveCable}/>}
  {dialog?.kind==="plant"&&<PlantForm initial={dialog.v} close={close} remove={()=>remove("plants",dialog.v)} commit={v=>{upsert("plants",v);close()}}/>}
  {dialog?.kind==="dress"&&<DressForm initial={dialog.v} design={design} close={close} commit={v=>{const fx=mountedFixture(v,design.plants);upsert("fixtures",fx);pick(fx.id);close()}}/>}
  {dialog?.kind==="controller"&&d&&<Controller key={d.id} full {...controllerProps} close={close}/>}
- {dialog?.kind==="fixture"&&<FixtureForm initial={dialog.v} existing={dialog.existing} design={design} close={close} remove={()=>remove("fixtures",dialog.v)} commit={(v,m)=>{if(m)begin(v,m);else{upsert("fixtures",v);pick(v.id);close()}}}/>}
+ {dialog?.kind==="fixture"&&<FixtureForm initial={dialog.v} existing={dialog.existing} design={design} close={close} remove={()=>remove("fixtures",dialog.v)} commit={saveFixture}/>}
  {dialog?.kind==="network"&&<NetworkForm initial={dialog.v} existing={dialog.existing} design={design} close={close} remove={()=>remove("networks",dialog.v)} commit={v=>{upsert("networks",v);close()}}/>}
  {dialog?.kind==="device"&&<DeviceForm initial={dialog.v} existing={dialog.existing} design={design} close={close} remove={()=>remove("devices",dialog.v)} commit={v=>{upsert("devices",v);close()}}/>}
  {dialog?.kind==="confirm"&&<Modal title={dialog.title} close={close} className="confirm"><p>{dialog.detail}</p><footer><button data-focus onClick={close}>Cancel</button><button className="danger solid" onClick={dialog.action}><I n="trash" size={15}/>Remove</button></footer></Modal>}

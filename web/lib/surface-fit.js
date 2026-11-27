@@ -102,7 +102,7 @@ export function propertySurface(meshes){
  }
  function route(raw,{radius=0,normals=[],snap=true,window=false}={}){
   const points=raw.map(p=>vec(window?clearWindowTrim(p):p));if(points.length<2)return points.map(p=>p.toArray());
-  const anchors=points.map((p,i)=>normals[i]?vec(normals[i]).normalize():nearest(p)?.normal||null);
+  const anchors=points.map((p,i)=>normals?.[i]?vec(normals[i]).normalize():nearest(p)?.normal||null);
   const out=[];
   function add(p){if(!out.length||out.at(-1).distanceToSquared(p)>1e-10)out.push(p)}
   function span(a,b,n,m){
@@ -146,7 +146,7 @@ export function propertySurface(meshes){
   }
   function crosses(a,b){const delta=b.clone().sub(a),length=delta.length();if(length<.004)return null;
    delta.divideScalar(length);return cast(a.clone().addScaledVector(delta,.0015),delta,length-.003,false)}
-  let obstructed=false;const verified=clean.length?[clean[0]]:[];
+  const blockedSegments=[];const verified=clean.length?[clean[0]]:[];
   for(let i=1;i<clean.length;i++){
    const a=clean[i-1],b=clean[i],hit=crosses(a,b);let detour=null,cost=Infinity;
    if(hit&&snap){const along=b.clone().sub(a).normalize(),side=along.clone().cross(up);
@@ -158,11 +158,11 @@ export function propertySurface(meshes){
      if(good){cost=length;detour=candidate}
     }
    }
-   if(hit&&snap&&!detour)obstructed=true;
+   if(hit&&snap&&!detour)blockedSegments.push([a.toArray(),b.toArray()]);
    if(detour)for(const p of detour)if(p.distanceToSquared(verified.at(-1))>1e-10)verified.push(p);
    if(b.distanceToSquared(verified.at(-1))>1e-10)verified.push(b);
   }
-  const result=verified.map(p=>p.toArray());if(obstructed)result.obstructed=true;return result;
+  const result=verified.map(p=>p.toArray());if(blockedSegments.length){result.obstructed=true;result.blockedSegments=blockedSegments}return result;
  }
  return {support,nearest,route,cast,seat,footprint};
 }
