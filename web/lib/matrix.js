@@ -1,4 +1,4 @@
-import {address,channels,hex,isPixel,isSerial,profile,serialPixel} from "./show.js";
+import {address,channels,hex,isPixel,isSerial,mountNames,profile,serialPixel} from "./show.js";
 import {acceptsFixture,circuitSpan,universePatch} from "./patch.js";
 import {cablePoints,fixtureLeads} from "./stage.js";
 
@@ -163,4 +163,44 @@ export function planSwap(show,id,boxId,n) {
   if (back.error) return null;
  }
  return {show:applyPatch(moved,back.fixture),other,replaced:!f.device};
+}
+
+// Location labels belong to a box's physical outputs, so they stay put when fixtures move.
+export const outputLabel = (box,n) => box?.labels?.[n] || "";
+
+export function labelOutput(show,boxId,n,text) {
+ const label = String(text ?? "").trim().slice(0,48);
+ const box = show.devices.find(d=>d.id===boxId);
+ if (!box || !Number.isInteger(n) || n<1 || n>512 || outputLabel(box,n)===label) return show;
+ const labels = {...(box.labels||{})};
+ if (label) labels[n] = label; else delete labels[n];
+ return {...show,devices:show.devices.map(d=>d===box?{...d,labels}:d)};
+}
+
+export function fixtureLocation(f,show) {
+ const box = show.devices.find(d=>d.id===f.device);
+ return box && profile(box).ports ? outputLabel(box,circuitSpan(f,profile(box).kind)[0]) : "";
+}
+
+// Name every unlabeled output after the first fixture patched to it.
+export function fillLabels(show) {
+ let next = show, count = 0;
+ for (const {box,outputs} of matrixGroups(show).groups) {
+  for (const [n,rows] of outputs) {
+   const first = rows[0];
+   if (outputLabel(box,n) || circuitSpan(first,profile(box).kind)[0]!==n) continue;
+   next = labelOutput(next,box.id,n,first.name); count++;
+  }
+ }
+ return {show:next,count};
+}
+
+export function locationSuggestions(show,first=[]) {
+ const seen = new Set(), list = [];
+ const add = v => { const t = String(v||"").trim(); if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); list.push(t); } };
+ first.forEach(add);
+ show.devices.forEach(d=>Object.values(d.labels||{}).forEach(add));
+ show.fixtures.forEach(f=>{add(f.name);add(f.zone)});
+ Object.values(mountNames).forEach(add);
+ return list;
 }

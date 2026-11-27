@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {sample,showSchema,address} from "../lib/show.js";
-import {applyPatch,channelRange,planPatch,planSwap,matrixGroups,portLoad} from "../lib/matrix.js";
+import {applyPatch,channelRange,planPatch,planSwap,matrixGroups,portLoad,labelOutput,outputLabel,fixtureLocation,fillLabels,locationSuggestions} from "../lib/matrix.js";
 import {defaultCable,controllerCords,cablePoints,outputPoint} from "../lib/stage.js";
 import {review} from "../lib/patch.js";
 
@@ -88,4 +88,26 @@ test("Pixel port load sums strands against the port's pixel limit",()=>{
  const load=portLoad(matrixGroups(next).groups[0],1,next.networks[0]);
  assert.equal(load.limit,170);assert.equal(load.used,a.count+b.count);
  assert.deepEqual(load.segments.map(x=>[x.f.id,x.start,x.end]),[[a.id,1,90],[b.id,91,122]]);
+});
+test("Output location labels stay on the channel, survive a save and reach the patch export",()=>{
+ const s=design(),box=s.devices[0],f=s.fixtures[0];
+ assert.deepEqual(box.labels,{});
+ let next=labelOutput(s,box.id,1,"  Front eave  ");
+ assert.equal(outputLabel(next.devices[0],1),"Front eave");
+ assert.equal(labelOutput(next,box.id,1,"Front eave"),next);
+ next=showSchema.parse(JSON.parse(JSON.stringify(next)));
+ assert.equal(fixtureLocation(next.fixtures[0],next),"Front eave");
+ const moved=applyPatch(next,planPatch(next,f.id,box.id,9).fixture);
+ assert.equal(outputLabel(moved.devices[0],1),"Front eave");
+ assert.equal(fixtureLocation(moved.fixtures[0],moved),"");
+ assert.deepEqual(labelOutput(next,box.id,1,"").devices[0].labels,{});
+});
+test("Filling labels names only unlabeled outputs after their fixtures",()=>{
+ const s=labelOutput(design(),"porch-box",2,"Dormer feed");
+ const {show,count}=fillLabels(s);
+ assert.equal(count,7);
+ assert.equal(outputLabel(show.devices[0],2),"Dormer feed");
+ assert.equal(outputLabel(show.devices[0],1),"Upper roofline");
+ assert.equal(fillLabels(show).count,0);
+ assert.deepEqual(locationSuggestions(show,["Mine","Dormer feed"]).slice(0,2),["Mine","Dormer feed"]);
 });

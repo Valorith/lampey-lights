@@ -85,12 +85,12 @@
 .mxRowUse i::after{content:"";position:absolute;inset:0 auto 0 0;width:calc(var(--p)*100%);border-radius:3px;background:var(--amber);transition:width .4s var(--ease)}
 .mxOut{min-height:0;padding:2px 7px;gap:3px;border-radius:99px;font:600 11px var(--font-mono);color:var(--berry);background:#ff858514;border-color:#ff858540}
 .mxRowEdit{width:28px;height:28px;flex:none}
-.mxCell{position:relative;min-width:0;padding:5px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);transition:background-color .18s,opacity .25s,box-shadow .2s}
+.mxCell{position:relative;display:flex;flex-direction:column;gap:3px;min-width:0;padding:5px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);transition:background-color .18s,opacity .25s,box-shadow .2s}
 .mxCell.xcol,.mxCell.xrow{background-color:#ffffff05}
 .mxCell.xcol.xrow{background-color:#ffffff0c}
 .mxCell.void{background:repeating-linear-gradient(135deg,#ffffff06 0 1px,transparent 1px 7px)}
 .mxCell.off{background-image:repeating-linear-gradient(135deg,#ff85850d 0 4px,transparent 4px 9px)}
-.mxStack{display:flex;flex-direction:column;gap:3px;height:100%}
+.mxStack{display:flex;flex-direction:column;gap:3px;flex:1;min-height:0}
 
 .mxChip{flex:1;width:100%;min-width:0;min-height:0;justify-content:flex-start;gap:9px;padding:0 10px;border-radius:9px;border:1px solid color-mix(in srgb,var(--fixture) 36%,transparent);background:linear-gradient(180deg,color-mix(in srgb,var(--fixture) 19%,#131c30),color-mix(in srgb,var(--fixture) 8%,#0e1626));box-shadow:inset 0 1px 0 #ffffff12,0 0 18px color-mix(in srgb,var(--fixture) 9%,transparent);text-align:left;font-weight:inherit;cursor:grab;touch-action:manipulation;user-select:none;-webkit-touch-callout:none;transition:border-color .15s,box-shadow .2s,filter .15s,opacity .2s,transform .12s var(--ease)}
 .mxChip:hover{background:linear-gradient(180deg,color-mix(in srgb,var(--fixture) 26%,#131c30),color-mix(in srgb,var(--fixture) 12%,#0e1626));border-color:color-mix(in srgb,var(--fixture) 60%,transparent)}
@@ -109,7 +109,7 @@
 .mxLoad i{position:absolute;top:0;bottom:0;background:var(--fixture);box-shadow:0 0 5px var(--fixture);transition:left .4s var(--ease),width .4s var(--ease)}
 .mxLoad i+i{border-left:2px solid #0e1626}
 .mxLoad.over{background:#ff858566}
-.mxSlot{width:100%;height:100%;min-height:0;padding:0;border:1px dashed transparent;border-radius:9px;background:transparent;color:var(--faint);opacity:0;transition:opacity .15s,background .15s,border-color .15s,color .15s}
+.mxSlot{flex:1;width:100%;min-height:0;padding:0;border:1px dashed transparent;border-radius:9px;background:transparent;color:var(--faint);opacity:0;transition:opacity .15s,background .15s,border-color .15s,color .15s}
 .mxCell:hover .mxSlot,.mxSlot:focus-visible{opacity:1;border-color:#ffffff24}
 .mxSlot:hover{background:#ffffff06;color:var(--text)}
 .off .mxSlot{opacity:1}
@@ -117,6 +117,24 @@
 .mxOffTag{position:absolute;top:2px;right:6px;pointer-events:none}
 .mxHint{position:absolute;top:2px;right:3px;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#2a2312;color:var(--amber);pointer-events:none;animation:pop .2s var(--ease)}
 @media(hover:none){.mxSlot{opacity:.5;border-color:#ffffff14}}
+
+/* Location labels */
+.mxTag{flex:none;justify-content:flex-start;gap:4px;min-height:0;height:15px;padding:0 4px;border:0;border-radius:4px;background:none;font:600 10.5px/1 var(--font-ui);letter-spacing:.01em;color:#c9d2e6;overflow:hidden}
+.mxTag span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mxTag .ico{color:var(--amber)}
+.mxTag:hover{background:#ffffff0c;color:var(--text)}
+.mxTagAdd{position:absolute;top:4px;right:4px;z-index:2;width:22px;height:22px;min-height:0;padding:0;border-radius:7px;border-color:var(--line-2);background:#0e1626eb;color:var(--muted);opacity:0;transition:opacity .15s,color .15s,border-color .15s}
+.mxCell:hover .mxTagAdd,.mxTagAdd:focus-visible{opacity:1}
+.mxTagAdd:hover{color:var(--amber);border-color:#ffc46b66;background:#1a2032}
+@media(hover:none){.mxTagAdd{opacity:.55}}
+.mxCell:has(.mxTagEdit){z-index:4}
+.mxTagEdit{position:absolute;left:3px;top:3px;z-index:6;display:flex;align-items:center;gap:6px;width:max(calc(100% - 6px),220px);height:32px;padding:0 4px 0 9px;border-radius:8px;border:1px solid var(--amber);background:#0b1222;box-shadow:0 0 0 3px #ffc46b2e,0 14px 32px #000b;color:var(--amber);animation:pop .14s var(--ease)}
+.mxTagEdit input{flex:1;min-width:0;height:100%;padding:0;border:0;background:none;box-shadow:none;font:600 12.5px var(--font-ui);color:var(--text)}
+.mxTagEdit input:focus{box-shadow:none}
+.compact .mxTag{display:none}
+.compact .mxCell.labeled::after{content:"";position:absolute;top:4px;left:4px;width:5px;height:5px;border-radius:50%;background:var(--amber);box-shadow:0 0 6px var(--amber);pointer-events:none}
+.compact .mxTagAdd{width:18px;height:18px;top:2px;right:2px}
+.mxFill{min-height:36px}.mxFill .ico{color:var(--amber)}
 
 /* Choosing an output: every cell previews what a drop would do. */
 .choosing .mxCell{cursor:pointer}

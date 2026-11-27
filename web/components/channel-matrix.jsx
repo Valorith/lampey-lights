@@ -1,7 +1,7 @@
 import {useEffect,useLayoutEffect,useMemo,useRef,useState} from "react";
 import {fixtures,isSerial,protocols} from "../lib/show";
 import {circuitSpan} from "../lib/patch";
-import {applyPatch,channelRange,matrixGroups,planPatch,planSwap,portLoad} from "../lib/matrix";
+import {applyPatch,channelRange,fillLabels,labelOutput,locationSuggestions,matrixGroups,outputLabel,planPatch,planSwap,portLoad} from "../lib/matrix";
 import {I,Empty,usePref} from "./ui-kit";
 import {Modal} from "./forms";
 import "../app/matrix.css";
@@ -136,6 +136,22 @@ function Load({load}){
  </div>;
 }
 
+// Inline location label. Enter or Tab saves and moves to the next output; Shift goes back.
+function LabelEditor({initial,name,save,cancel}){
+ const [text,setText]=useState(initial),ref=useRef(null),settled=useRef(false);
+ useEffect(()=>{ref.current?.focus();ref.current?.select()},[]);
+ const finish=step=>{if(settled.current)return;settled.current=true;save(text,step)};
+ return <span className="mxTagEdit" onClick={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()} onDoubleClick={e=>e.stopPropagation()}>
+  <I n="pin" size={12}/>
+  <input ref={ref} value={text} list="mx-locations" maxLength={48} placeholder="Location" aria-label={"Location for "+name}
+   onChange={e=>setText(e.target.value)} onBlur={()=>finish(0)}
+   onKeyDown={e=>{
+    if(e.key==="Enter"||e.key==="Tab"){e.preventDefault();finish(e.shiftKey?-1:1)}
+    else if(e.key==="Escape"){e.preventDefault();settled.current=true;cancel()}
+   }}/>
+ </span>;
+}
+
 function FixturePicker({design,group,n,place,close}){
  const [q,setQ]=useState("");
  const key=keyOf(group.box.id,n);
@@ -156,7 +172,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
  const [density,setDensity]=usePref("matrix.density","detailed"),[bin,setBin]=usePref("matrix.bin",true);
  const [colPage,setColPage]=useState(0);
  const [picked,pick]=useState(""),[drag,setDrag]=useState(null),[aim,setAim]=useState("");
- const [linked,link]=useState(""),[hover,setHover]=useState(null),[landed,setLanded]=useState(""),[picker,setPicker]=useState(null),[focus,setFocus]=useState(null);
+ const [linked,link]=useState(""),[hover,setHover]=useState(null),[landed,setLanded]=useState(""),[picker,setPicker]=useState(null),[focus,setFocus]=useState(null),[editing,setEditing]=useState("");
  const rootRef=useRef(null),mainRef=useRef(null),binRef=useRef(null),ghostRef=useRef(null),flight=useRef(null);
  const [engine]=useState(createDragEngine);
 
@@ -173,7 +189,10 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
  const needle=query.trim().toLowerCase();
  const boxOf=id=>groups.find(g=>g.box.id===id);
  const startOf=f=>{const g=boxOf(f.device);return g?circuitSpan(f,g.model.kind)[0]:0};
- const where=f=>{const g=boxOf(f.device);return g?g.box.name+" · "+short(g)+pad(startOf(f)):""};
+ const spot=f=>{const g=boxOf(f.device);return g?outputLabel(g.box,startOf(f)):""};
+ const where=f=>{const g=boxOf(f.device);return g?[g.box.name+" · "+short(g)+pad(startOf(f)),spot(f)!==f.name&&spot(f)].filter(Boolean).join(" · "):""};
+ const fill=useMemo(()=>fillLabels(design),[design]);
+ const labeled=groups.reduce((s,g)=>s+Object.keys(g.box.labels||{}).filter(n=>n<=g.model.ports).length,0);
  const maxPorts=Math.max(0,...groups.map(g=>g.model.ports));
  const pages=Math.max(1,Math.ceil(maxPorts/pageCols)),page=Math.min(colPage,pages-1);
  const cols=range(page*pageCols+1,Math.min(maxPorts,(page+1)*pageCols));
@@ -228,6 +247,20 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
   setLanded(id);pick("");
  }
 
+ // Outputs one fixture spans share a cell; its label sits on the first of them.
+ function cellAt(g,n){
+  const rows=g.outputs.get(n)||[];
+  return g.model.kind!=="pixel"&&rows.length===1?circuitSpan(rows[0],g.model.kind):[n,n];
+ }
+ function saveLabel(key,text,step){
+  const [boxId,n]=parseKey(key),g=boxOf(boxId);
+  const next=labelOutput(design,boxId,n,text);
+  if(next!==design)change(next);
+  const m=!g||!step?0:step>0?cellAt(g,n)[1]+1:cellAt(g,n-1)[0];
+  if(m<1||m>g.model.ports){setEditing("");return}
+  setColPage(Math.floor((m-1)/pageCols));setEditing(keyOf(boxId,m));
+ }
+
  function clickCell(group,n){
   if(active)place(active.id,keyOf(group.box.id,n));
   else setPicker({id:group.box.id,n});
@@ -270,7 +303,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
  })});
  useLayoutEffect(()=>{if(drag)engine.paint()},[drag,engine]);
  useEffect(()=>()=>engine.dispose(),[engine]);
- useEffect(()=>{const key=e=>{if(e.key!=="Escape")return;if(engine.dragging())engine.cancel();else{pick("");setPicker(null)}};
+ useEffect(()=>{const key=e=>{if(e.key!=="Escape")return;if(engine.dragging())engine.cancel();else{pick("");setPicker(null);setEditing("")}};
   window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key)},[engine]);
 
  const chipState=f=>drag?.id===f.id?"source":picked===f.id?"picked":linked===f.id?"linked":"";
@@ -285,9 +318,9 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
   const shows=n=>{
    const rows=outputs.get(n)||[];
    if(filter==="Used"&&!rows.length||filter==="Free"&&(rows.length||box.offPorts?.includes(n))||filter==="Issues"&&!rows.some(f=>faults.has(f.id)))return false;
-   return nameHit||outputName(g,n).toLowerCase().includes(needle)||rows.some(fxHit);
+   return nameHit||outputName(g,n).toLowerCase().includes(needle)||outputLabel(box,n).toLowerCase().includes(needle)||rows.some(fxHit);
   };
-  if(needle&&!nameHit&&![...outputs.values()].flat().some(fxHit)&&!overflow.some(fxHit))return null;
+  if(needle&&!nameHit&&![...outputs.values()].flat().some(fxHit)&&!overflow.some(fxHit)&&!Object.values(box.labels||{}).some(t=>t.toLowerCase().includes(needle)))return null;
   const onRow=cross?.row===box.id,problem=faults.get(box.id);
   // Walk the visible columns, merging channels that one fixture occupies into a single cell.
   const runs=[],last=cols.at(-1)||0;
@@ -306,17 +339,21 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
    const v=judgeAt?.(key);
    const state=!v?"":v.home?" home":v.error?" invalid":v.swap?" swap":" valid";
    const aimed=drag&&parseKey(aim)[0]===box.id&&covered.includes(parseKey(aim)[1]);
-   const cls="mxCell"+(rows.length?" used":" free")+(off?" off":"")+state+(aimed?" aim":"")+(covered.some(shows)?"":" faded")+
+   const cls="mxCell"+(rows.length?" used":" free")+(outputLabel(box,n)?" labeled":"")+(off?" off":"")+state+(aimed?" aim":"")+(covered.some(shows)?"":" faded")+
     (cross?.col!=null&&covered.includes(cross.col)?" xcol":"")+(onRow?" xrow":"")+(rows.some(f=>f.id===landed)?" landed":"")+
     (rows.some(f=>f.id===linked)?" linked":"")+(rows.some(f=>faults.has(f.id))?" fault":"");
-   const label=outputName(g,n)+(span>1?"–"+(n+span-1):"")+" on "+box.name;
+   const name=outputName(g,n)+(span>1?"–"+(n+span-1):"")+" on "+box.name,tag=outputLabel(box,n);
    return <div key={n} className={cls} data-port={key} data-drop={active?key:undefined} data-span={span>1?span:undefined}
-    style={{gridColumn:span>1?"span "+span:undefined,"--fixture":rows[0]?.color}}
-    onPointerEnter={()=>setHover({row:box.id,col:n})} onClick={e=>{if(!e.target.closest(".mxChip"))clickCell(g,n)}}>
+    style={{gridColumn:span>1?"span "+span:undefined,"--fixture":rows[0]?.color}} title={tag||undefined}
+    onPointerEnter={()=>setHover({row:box.id,col:n})} onClick={e=>{if(!e.target.closest(".mxChip"))clickCell(g,n)}}
+    onDoubleClick={e=>{if(!active){e.preventDefault();setPicker(null);setEditing(key)}}}>
+    {editing===key?<LabelEditor initial={tag} name={name} save={(t,step)=>saveLabel(key,t,step)} cancel={()=>setEditing("")}/>:
+     tag?<button type="button" className="mxTag" title={tag} aria-label={"Location "+tag+", "+name+". Edit"} onClick={e=>{e.stopPropagation();if(!active)setEditing(key)}}><I n="pin" size={11}/><span>{tag}</span></button>:
+     !active&&<button type="button" className="mxTagAdd" aria-label={"Label "+name} data-tip="Label location" data-tip-pos="down" onClick={e=>{e.stopPropagation();setEditing(key)}}><I n="pin" size={12}/></button>}
     {rows.length?<div className={"mxStack"+(rows.length>1?" multi":"")}>
      {rows.slice(0,rows.length>2?1:2).map(f=>chip(f,[channelRange(f,box,network),pixel&&f.offset>1&&"px "+f.offset].filter(Boolean).join(" · "),cont))}
      {rows.length>2&&<button type="button" className="mxMore" onClick={e=>{e.stopPropagation();setPicker({id:box.id,n})}}>+{rows.length-1} more</button>}
-    </div>:<button type="button" className="mxSlot" aria-label={(active?"Place on ":"Assign to ")+label} onClick={e=>{e.stopPropagation();clickCell(g,n)}}>
+    </div>:<button type="button" className="mxSlot" aria-label={(active?"Place on ":"Assign to ")+name} onClick={e=>{e.stopPropagation();clickCell(g,n)}}>
      {off?<em>Off</em>:<I n="plus" size={14}/>}</button>}
     {rows.length>0&&off&&<em className="mxOffTag">Off</em>}
     {v?.swap&&<span className="mxHint"><I n="swap" size={12}/></span>}
@@ -376,7 +413,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
   <main ref={mainRef} className="mxMain">
    <header className="mxBar">
     <div className="mxTitle"><h1>Channel matrix</h1>
-     <p><span><b>{usedPorts}</b>/{totalPorts} outputs</span><span><b>{groups.length}</b> {groups.length===1?"box":"boxes"}</span>
+     <p><span><b>{usedPorts}</b>/{totalPorts} outputs</span><span><b>{groups.length}</b> {groups.length===1?"box":"boxes"}</span><span><b>{labeled}</b> labeled</span>
       {faults.size>0&&<button type="button" className="mxIssues" aria-pressed={filter==="Issues"} onClick={()=>setFilter(f=>f==="Issues"?"All":"Issues")}><I n="alert" size={13}/>{faults.size} {faults.size===1?"issue":"issues"}</button>}</p>
     </div>
     <div className="mxTools">
@@ -387,6 +424,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
      <div className="mxSeg icons" role="group" aria-label="Cell size" style={{"--i":density==="compact"?0:1,"--count":2}}>
       <button type="button" aria-pressed={density==="compact"} aria-label="Compact cells" data-tip="Compact" data-tip-pos="down" onClick={()=>setDensity("compact")}><I n="zoomOut" size={15}/></button>
       <button type="button" aria-pressed={density!=="compact"} aria-label="Detailed cells" data-tip="Detailed" data-tip-pos="down" onClick={()=>setDensity("detailed")}><I n="zoomIn" size={15}/></button></div>
+     {fill.count>0&&<button type="button" className="mxFill" data-tip="Name unlabeled outputs after their fixtures" data-tip-pos="down" onClick={()=>{change(fill.show);notify("Labeled "+fill.count+(fill.count===1?" output":" outputs"),false,true)}}><I n="pin" size={15}/>Fill labels</button>}
      <button type="button" className={"tool mxBinToggle"+(bin?" on":"")} aria-pressed={bin} aria-label="Fixture list" data-tip={bin?"Hide fixtures":"Show fixtures"} data-tip-pos="down" onClick={()=>setBin(b=>!b)}><I n="sidebar" size={16}/></button>
      <button type="button" className="mxAdd" onClick={addBox}><I n="plus" size={15}/>Add box</button>
     </div>
@@ -421,10 +459,11 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
    <div className="mxGhostCard"><i className="mxLamp"/><span><strong>{ghostFx.name}</strong><small>{where(ghostFx)||ghostFx.zone}</small></span><I n="grip" size={16}/></div>
    {verdict&&!verdict.home&&<div className={"mxVerdict"+(verdict.error?" bad":verdict.swap?" swap":"")}>
     <I n={verdict.error?"alert":verdict.swap?"swap":verdict.unpatch?"cable":"check"} size={13}/>
-    <span>{verdict.error||(verdict.unpatch?"Unpatch":verdict.swap?(verdict.swap.replaced?"Replace ":"Swap with ")+verdict.swap.other.name:aimGroup&&aimGroup.box.name+" · "+outputName(aimGroup,parseKey(aim)[1]))}</span>
+    <span>{verdict.error||(verdict.unpatch?"Unpatch":verdict.swap?(verdict.swap.replaced?"Replace ":"Swap with ")+verdict.swap.other.name:aimGroup&&[aimGroup.box.name+" · "+outputName(aimGroup,parseKey(aim)[1]),outputLabel(aimGroup.box,parseKey(aim)[1])].filter(Boolean).join(" · "))}</span>
    </div>}
   </div>}
 
+  {editing&&<datalist id="mx-locations">{locationSuggestions(design,(boxOf(parseKey(editing)[0])?.outputs.get(parseKey(editing)[1])||[]).flatMap(f=>[f.name,f.zone])).map(t=><option key={t} value={t}/>)}</datalist>}
   {pickerGroup&&<FixturePicker design={design} group={pickerGroup} n={picker.n} place={place} close={()=>setPicker(null)}/>}
  </div>;
 }

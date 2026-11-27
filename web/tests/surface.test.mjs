@@ -64,6 +64,7 @@ test("curved lead footage and extra cord agree across the scene, export and save
   [ft.toFixed(1),"2.5",(ft+2.5).toFixed(1),"Traced"]);
  const [head,first]=patchCSV(reopened,geometry).split("\r\n");
  assert.ok(head.includes('"Lead route (ft)","Extra cord (ft)","Total lead cord (ft)"'));
+ assert.ok(head.includes('"Box / output / address","Output location"'));
  assert.ok(first.endsWith('"'+ft.toFixed(1)+'","2.5","'+(ft+2.5).toFixed(1)+'","Traced"'));
  assert.equal(cordLabel(cable,path),ft.toFixed(1)+" ft + 2.5 ft extra = "+(ft+2.5).toFixed(1)+" ft");
  assert.equal(fixtureFootage({...f,points:[],device:""},design,geometry)[0],"");
