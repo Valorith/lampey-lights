@@ -462,7 +462,9 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
   if(engine.dragging())return;
   const rect=e.currentTarget.getBoundingClientRect?.();
   const x=e.clientX||rect?.left+16,y=e.clientY||rect?.top+rect?.height/2;
-  const key=keyOf(g.box.id,n),rows=g.outputs.get(n)||[],tag=outputLabel(g.box,n),off=g.box.offPorts?.includes(n);
+  // A fixture's location label lives on its first channel, even when the menu opens on a later one.
+  const first=cellAt(g,n)[0],labelKey=keyOf(g.box.id,first);
+  const key=keyOf(g.box.id,n),rows=g.outputs.get(n)||[],tag=outputLabel(g.box,first),off=g.box.offPorts?.includes(n);
   const v=active&&judge(design,active,key);
   setCursor(key);
   setMenu({x,y,key,title:[g.box.name,outputName(g,n),tag].filter(Boolean).join(" · "),items:[
@@ -474,8 +476,8 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
     {icon:"cable",label:rows.length>1?"Remove "+f.name+" from output":"Remove from output",run:()=>unpatch(f),hint:rows.length===1?"Del":undefined}
    ]),
    "-",
-   {icon:"pin",label:tag?"Rename location…":"Label location…",run:()=>editLabel(key),hint:"F2"},
-   tag&&{icon:"x",label:"Clear location",run:()=>change(labelOutput(design,g.box.id,n,""))},
+   {icon:"pin",label:tag?"Rename location…":"Label location…",run:()=>editLabel(labelKey),hint:"F2"},
+   tag&&{icon:"x",label:"Clear location",run:()=>change(labelOutput(design,g.box.id,first,""))},
    {icon:"power",label:off?"Turn output on":"Turn output off",run:()=>toggleOff(g,n)},
    "-",
    {icon:"settings",label:"Box settings",run:()=>editBox(g.box)}
@@ -524,7 +526,8 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
    const v=judgeAt?.(key);
    const state=!v?"":v.home?" home":v.error?" invalid":v.swap?" swap":" valid";
    const aimed=drag&&aimBox===box.id&&covered.includes(aimN);
-   const tag=outputLabel(box,n);
+   // A cell continuing a fixture from the previous column page still shows and edits the label on its first channel.
+   const labelKey=keyOf(box.id,cellAt(g,n)[0]),tag=outputLabel(box,cellAt(g,n)[0]);
    const cls="mxCell"+(rows.length?" used":" free")+(tag?" labeled":"")+(off?" off":"")+state+(aimed?" aim":"")+(covered.some(shows)?"":" faded")+
     (rows.some(f=>landed.includes(f.id))?" landed":"")+(rows.some(f=>faults.has(f.id))?" fault":"");
    const name=outputName(g,n)+(span>1?"–"+(n+span-1):"")+" on "+box.name;
@@ -535,10 +538,10 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
     onPointerEnter={()=>{if(!engine.dragging())paintCross({row:box.id,col:n})}} onFocus={()=>setCursor(key)}
     onKeyDown={e=>{if(e.target===e.currentTarget)cellKeys(e,g,n)}} onContextMenu={e=>openMenu(e,g,n)}
     onClick={e=>{setCursor(key);if(!e.target.closest(".mxChip"))clickCell(g,n)}}
-    onDoubleClick={e=>{if(!active&&!e.target.closest(".mxChip")){e.preventDefault();editLabel(key)}}}>
-    {editing===key?<LabelEditor initial={tag} name={name} save={(t,step)=>saveLabel(key,t,step)} cancel={()=>{setEditing("");moveCursor(key)}}/>:
-     tag?<button type="button" tabIndex={-1} className="mxTag" title={tag} aria-hidden="true" onClick={e=>{e.stopPropagation();if(!active)editLabel(key)}}><I n="pin" size={11}/><span>{tag}</span></button>:
-     !active&&<button type="button" tabIndex={-1} className="mxTagAdd" aria-hidden="true" data-tip="Label location" data-tip-pos="down" onClick={e=>{e.stopPropagation();editLabel(key)}}><I n="pin" size={12}/></button>}
+    onDoubleClick={e=>{if(!active&&!e.target.closest(".mxChip")){e.preventDefault();editLabel(labelKey)}}}>
+    {editing===labelKey?<LabelEditor initial={tag} name={name} save={(t,step)=>saveLabel(labelKey,t,step)} cancel={()=>{setEditing("");moveCursor(key)}}/>:
+     tag?<button type="button" tabIndex={-1} className="mxTag" title={tag} aria-hidden="true" onClick={e=>{e.stopPropagation();if(!active)editLabel(labelKey)}}><I n="pin" size={11}/><span>{tag}</span></button>:
+     !active&&<button type="button" tabIndex={-1} className="mxTagAdd" aria-hidden="true" data-tip="Label location" data-tip-pos="down" onClick={e=>{e.stopPropagation();editLabel(labelKey)}}><I n="pin" size={12}/></button>}
     {rows.length?<div className={"mxStack"+(rows.length>1?" multi":"")}>
      {rows.slice(0,rows.length>2?1:2).map(f=>chip(f,[channelRange(f,box,network),pixel&&f.offset>1&&"px "+f.offset].filter(Boolean).join(" · "),cont))}
      {rows.length>2&&<button type="button" tabIndex={-1} className="mxMore" onClick={e=>{e.stopPropagation();setPicker({id:box.id,n})}}>+{rows.length-1} more</button>}

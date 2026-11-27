@@ -182,13 +182,15 @@ export function fixtureLocation(f,show) {
  return box && profile(box).ports ? outputLabel(box,circuitSpan(f,profile(box).kind)[0]) : "";
 }
 
-// Name every unlabeled output after the first fixture patched to it.
+// Name every unlabeled output after the first fixture on it: the strand nearest the
+// controller on a shared pixel port, or the fixture that starts on that channel.
 export function fillLabels(show) {
  let next = show, count = 0;
  for (const {box,outputs} of matrixGroups(show).groups) {
+  const kind = profile(box).kind;
   for (const [n,rows] of outputs) {
-   const first = rows[0];
-   if (outputLabel(box,n) || circuitSpan(first,profile(box).kind)[0]!==n) continue;
+   const first = rows.filter(f=>circuitSpan(f,kind)[0]===n).sort((a,b)=>a.offset-b.offset)[0];
+   if (!first || outputLabel(box,n)) continue;
    next = labelOutput(next,box.id,n,first.name); count++;
   }
  }

@@ -137,3 +137,19 @@ test("Build sheet notes wrap on word boundaries inside the controller faceplate"
  const html=matrixDocument(s);
  assert.match(html,/<tspan x="34" dy="0">Mounted inside garage on<\/tspan><tspan x="34" dy="15">the left wall behind the<\/tspan>/);
 });
+test("A show name cannot break out of the build sheet's style element",async()=>{
+ const {matrixDocument}=await import("../lib/matrix-print.js");
+ const s=design();s.name='x</style><img src=x onerror=alert(1)>';
+ const html=matrixDocument(s);
+ const style=html.slice(html.indexOf("<style>"),html.indexOf("</style>"));
+ assert.doesNotMatch(style,/<img/);
+ assert.equal((html.match(/<\/style>/g)||[]).length,1);
+ assert.doesNotMatch(html,/<img src=x/);
+});
+test("Fill labels names a shared pixel port after the strand nearest the controller",()=>{
+ const s=design(),box=s.devices[0],[a,b]=s.fixtures;
+ let next=applyPatch(s,planPatch(s,b.id,box.id,1).fixture);
+ // Put the downstream strand first in show order.
+ next.fixtures=[next.fixtures[1],next.fixtures[0],...next.fixtures.slice(2)];
+ assert.equal(outputLabel(fillLabels(next).show.devices[0],1),a.name);
+});

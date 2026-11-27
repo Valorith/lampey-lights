@@ -6,7 +6,9 @@ import {channelRange,matrixGroups,outputLabel,portLoad} from "./matrix.js";
 // page per controller (schematic plus checklist), then cut-out lid cards.
 
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const cssText = v => '"'+String(v ?? "").replace(/[\\"]/g,"\\$&").replace(/[\n\r]/g," ")+'"';
+// A CSS string inside the <style> element: escape quotes and backslashes, and write "<"
+// as a CSS escape so text like "</style>" can never close the element.
+const cssText = v => '"'+String(v ?? "").replace(/[\\"]/g,"\\$&").replace(/[\n\r]/g," ").replace(/</g,"\\3C ")+'"';
 const pad = n => String(n).padStart(2,"0");
 const short = kind => kind==="pixel" ? "P" : kind==="dmx" ? "S" : "CH";
 const word = kind => kind==="pixel" ? "Port" : kind==="dmx" ? "Slot" : "Channel";
@@ -41,6 +43,11 @@ export function wiringRows(group) {
    continue;
   }
   if (!list.length) { rows.push({n,last:n,free:true}); continue; }
+  if (model.kind!=="pixel") {
+   // Overlapping fixtures (already flagged as patch errors) each appear once, at their own first channel.
+   for (const f of list) if (circuitSpan(f,model.kind)[0]===n) rows.push({n,last:circuitSpan(f,model.kind)[1],f,first:true});
+   continue;
+  }
   [...list].sort((x,y)=>x.offset-y.offset).forEach((f,i,all)=>rows.push({n,last:n,f,first:i===0,after:i?all[i-1]:null}));
  }
  return rows.map(r => ({...r,label:outputLabel(box,r.n),off:!!box.offPorts?.includes(r.n),h:r.f?ROW:SLIM}));
