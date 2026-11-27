@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {sample,showSchema,address} from "../lib/show.js";
-import {applyPatch,channelRange,planPatch,matrixGroups} from "../lib/matrix.js";
+import {applyPatch,channelRange,planPatch,planSwap,matrixGroups,portLoad} from "../lib/matrix.js";
 import {defaultCable,controllerCords,cablePoints,outputPoint} from "../lib/stage.js";
 import {review} from "../lib/patch.js";
 
@@ -67,4 +67,25 @@ test("Repatching preserves hand-drawn leads, including reverse endpoints, throug
  assert.deepEqual(next.cables[0].points[1],[4,4,4]);
  assert.equal(controllerCords(next,box2.id).length,1);
  assert.equal(controllerCords(next,box.id).some(c=>c.fx.id===a.id),false);
+});
+test("Dropping on an occupied output swaps the two fixtures or bumps the occupant",()=>{
+ const s=design(),box=s.devices[0],[a,b]=s.fixtures;s.fixtures=[a,b];
+ box.model="ac16";Object.assign(a,{type:"ac",port:1});Object.assign(b,{type:"ac",port:2});
+ assert.match(planPatch(s,a.id,box.id,2).error,/already used/);
+ const swap=planSwap(s,a.id,box.id,2);
+ assert.equal(swap.other.id,b.id);assert.equal(swap.replaced,false);
+ assert.deepEqual(swap.show.fixtures.map(f=>f.port),[2,1]);
+ assert.deepEqual(review(swap.show).filter(i=>i.level==="error"),[]);
+ s.fixtures[0]={...a,device:""};
+ const bump=planSwap(s,a.id,box.id,2);
+ assert.equal(bump.replaced,true);
+ assert.deepEqual(bump.show.fixtures.map(f=>[f.device,f.port]),[[box.id,2],["",2]]);
+ assert.equal(planSwap(s,a.id,box.id,5),null);
+});
+test("Pixel port load sums strands against the port's pixel limit",()=>{
+ const s=design(),[a,b]=s.fixtures;
+ const next=applyPatch(s,planPatch(s,b.id,s.devices[0].id,1).fixture);
+ const load=portLoad(matrixGroups(next).groups[0],1,next.networks[0]);
+ assert.equal(load.limit,170);assert.equal(load.used,a.count+b.count);
+ assert.deepEqual(load.segments.map(x=>[x.f.id,x.start,x.end]),[[a.id,1,90],[b.id,91,122]]);
 });

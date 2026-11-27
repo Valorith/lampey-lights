@@ -51,6 +51,19 @@ export function matrixGroups(show) {
  return {groups:[...groups.values()],loose};
 }
 
+// Pixels a single port can drive on this box and network.
+export function pixelLimit(box,network) {
+ return box.model==="pixcon" && network?.protocol==="elor" ? Math.min(170,box.pixelLimit) : box.pixelLimit;
+}
+
+// Pixel strands sharing one port, as ranges of the port's pixel run.
+export function portLoad(group,n,network) {
+ const rows = group.outputs.get(n) || [];
+ const limit = pixelLimit(group.box,network);
+ const segments = rows.map(f=>({f,start:f.offset,end:f.offset+f.count-1})).sort((a,b)=>a.start-b.start);
+ return {limit,used:rows.reduce((sum,f)=>sum+f.count,0),segments};
+}
+
 function networkPatch(show,f,box,network) {
  const upstream = network.bridge ? show.devices.find(d=>d.id===network.bridge)?.net : network.id;
  return universePatch(f,box,network,show.networks.find(n=>n.id===upstream));
@@ -75,8 +88,7 @@ export function planPatch(show,id,boxId,channel) {
  const neighbors = others.filter(x=>x.device===boxId);
  if (kind==="pixel") {
   const ranges = neighbors.filter(x=>x.port===port).map(x=>[x.offset,x.offset+x.count-1]);
-  const limit = box.model==="pixcon" && network.protocol==="elor" ? Math.min(170,box.pixelLimit) : box.pixelLimit;
-  next.offset = firstGap(ranges,f.count,f.offset,limit);
+  next.offset = firstGap(ranges,f.count,f.offset,pixelLimit(box,network));
   if (!next.offset) return {error:"This port has no free run of "+f.count+" pixels."};
  } else {
   if (kind==="dmx") next.slot=channel;
@@ -119,4 +131,36 @@ export function applyPatch(show,fixture) {
    points:cablePoints(c,show),detachedLead:fixture.device?undefined:true};
  });
  return {...show,fixtures:show.fixtures.map(x=>x===old?fixture:x),cables};
+}
+
+const onOutput = (show,boxId,n) => {
+ const box = show.devices.find(d=>d.id===boxId);
+ if (!box) return [];
+ const {kind} = profile(box);
+ return show.fixtures.filter(f=>{
+  if (f.device!==boxId) return false;
+  const [a,b] = circuitSpan(f,kind);
+  return a<=n && n<=b;
+ });
+};
+
+// Trade places with the single fixture on an output, or bump it to unpatched when
+// the moving fixture had no output. Returns the next show, or null when no trade fits.
+export function planSwap(show,id,boxId,n) {
+ const f = show.fixtures.find(x=>x.id===id);
+ const others = onOutput(show,boxId,n).filter(x=>x.id!==id);
+ if (!f || !boxId || others.length!==1) return null;
+ const other = others[0];
+ const cleared = applyPatch(show,{...other,device:""});
+ const first = planPatch(cleared,id,boxId,n);
+ if (first.error) return null;
+ const moved = applyPatch(cleared,first.fixture);
+ let back = {fixture:moved.fixtures.find(x=>x.id===other.id)};
+ if (f.device) {
+  const home = show.devices.find(d=>d.id===f.device);
+  if (!home) return null;
+  back = planPatch(moved,other.id,f.device,circuitSpan(f,profile(home).kind)[0]);
+  if (back.error) return null;
+ }
+ return {show:applyPatch(moved,back.fixture),other,replaced:!f.device};
 }
