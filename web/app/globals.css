@@ -236,6 +236,10 @@ kbd{font:500 10.5px/1 var(--font-mono);color:var(--muted);background:#ffffff0f;b
 .selText small{font-size:11.5px}
 .hint{position:absolute;left:14px;bottom:12px;font-size:11px;color:#ffffff73;pointer-events:none;z-index:2;text-shadow:0 1px 4px #000a}
 .viewport.day .hint{color:#0c1322a6;text-shadow:none}
+.hint{max-width:calc(50% - 310px)}
+.viewport[data-ctrl=on] .hintIdle,.viewport:not([data-ctrl=on]) .hintCtrl{display:none}
+.viewport[data-ctrl=on] .hint{color:#ffe097}
+.viewport.day[data-ctrl=on] .hint{color:#8a5a00}
 
 /* ---------- Network & patch pages ---------- */
 .ledger{overflow:auto;flex:1;background:radial-gradient(ellipse 70% 320px at 50% 0,#141e36 0,transparent 100%)}

@@ -30,7 +30,7 @@ export function CommandPalette({items,close}){
 
 const shortcuts=[
  ["General",[["Command palette","Ctrl K"],["Undo / redo","Ctrl Z / Ctrl Shift Z"],["Layout, Network, Patch, Matrix","1  2  3  4"],["Shortcuts","?"],["Cancel or deselect","Esc"]]],
- ["Scene",[["Toolbox","T"],["Draw strand","D"],["Find in scene","/"],["Scene panel","["],["Edit selection","E"],["Duplicate selection","Ctrl D"],["Hide or show selection","H"],["Remove selection","Del"]]],
+ ["Scene",[["Toolbox","T"],["Draw strand","D"],["Find in scene","/"],["Scene panel","["],["Edit selection","E"],["Duplicate selection","Ctrl D"],["Copy, cut, paste","Ctrl C  X  V"],["Select all","Ctrl A"],["Add to selection","Shift + click"],["Box select","Shift + drag  ·  B"],["Move prop or selection","Ctrl + drag"],["Move along one axis","Drag an arrow"],["Move arrows on or off","G"],["Snap arrows to ½ ft","Shift"],["Nudge selection","Arrows  ·  Shift"],["Reshape wires","Hold Ctrl, drag a dot"],["Hide or show selection","H"],["Remove selection","Del"]]],
  ["View",[["Preview show","Space"],["Night or daylight","N"],["Labels","L"],["Wiring","W"],["Scale selected prop","Ctrl + wheel"],["Rotate selected prop","Alt + wheel"],["Frame selection","F"],["Reset camera","R"],["Zoom","+  −"]]],
  ["Matrix",[["Move between outputs","← → ↑ ↓"],["Pick up or place","Enter"],["Label output","F2"],["Remove from output","Del"],["Output menu","Shift F10"],["Find, then jump to match","/  Enter"]]],
  ["Drawing",[["Pick a drawing tool","1 – 8"],["Finish a path","Enter"],["Remove last point","Backspace"],["Level, plumb or square","Shift"],["Ignore snapping","Alt"],["Resize a prop","[  ]"],["Turn a prop",",  ."]]]

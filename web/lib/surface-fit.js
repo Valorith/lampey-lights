@@ -62,6 +62,28 @@ export function propertySurface(meshes){
   });return p.addScaledVector(n,top).toArray();
  }
  function support(point){const p=vec(point),found=nearest(p);return found?.normal.toArray()||null}
+ // Tuck a point into the inside corner where a wall meets the ground or a step,
+ // so a cord dropped near a foundation runs neatly along its base.
+ function crease(point,normal,reach=.42){
+  const p=vec(point),n=vec(normal||[0,1,0]).normalize(),down=new Vector3(0,-1,0);
+  let floor=null,wall=null;
+  if(n.y>.75){
+   const origin=p.clone().addScaledVector(up,.07);
+   for(let i=0;i<16;i++){const a=i*Math.PI/8,dir=new Vector3(Math.cos(a),0,Math.sin(a)),h=cast(origin,dir,reach);
+    if(h&&Math.abs(h.normal.y)<.3&&(!wall||h.distance<wall.distance))wall=h}
+   if(!wall)return null;
+   floor={point:p.clone().addScaledVector(up,-.045),normal:n};
+  }else if(Math.abs(n.y)<.3){
+   const h=cast(p,down,reach);if(!h||h.normal.y<.75)return null;
+   floor=h;wall={point:p.clone().addScaledVector(n,-.045),normal:n};
+  }else return null;
+  const out=wall.normal.clone().setY(0).normalize(),clear=gap+.02;
+  // Slide onto the wall face, then settle on the floor just in front of it.
+  const at=wall.point.clone().addScaledVector(out,clear);at.y=p.y+.3;
+  const ground=cast(at,down,reach+.6);
+  const y=(ground&&ground.normal.y>.75?ground.point.y:floor.point.y)+clear;
+  return {point:[at.x,y,at.z],normal:(ground?.normal||floor.normal).toArray(),wall:out.toArray()};
+ }
  function corner(a,b,na,nb){
   const cos=na.dot(nb);if(Math.abs(cos)>.96)return null;
   const mid=a.clone().lerp(b,.5),da=a.clone().sub(mid).dot(na),db=b.clone().sub(mid).dot(nb);
@@ -164,6 +186,6 @@ export function propertySurface(meshes){
   }
   const result=verified.map(p=>p.toArray());if(blockedSegments.length){result.obstructed=true;result.blockedSegments=blockedSegments}return result;
  }
- return {support,nearest,route,cast,seat,footprint};
+ return {support,nearest,route,cast,seat,footprint,crease};
 }
 

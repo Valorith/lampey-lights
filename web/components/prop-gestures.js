@@ -11,9 +11,13 @@ export function bindPropGestures(surface,viewport,actions){
  }
  function down(event){
   if(drag){clear();return}
-  if(!event.isPrimary||event.button!==0||event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return;
+  // Ctrl (Cmd on a Mac) + drag moves a prop; a plain drag always orbits. Touch has no
+  // modifier, so a finger drags the prop that is already selected.
+  const held=event.ctrlKey||event.metaKey,touch=event.pointerType==="touch";
+  if(!event.isPrimary||event.button!==0||event.shiftKey||event.altKey||(!held&&!touch))return;
   const target=actions.grab(event);
   if(!target||target.prop.row.locked)return;
+  if(!held&&actions.selected()?.row.id!==target.prop.row.id)return;
   consume(event);
   drag={...target,pointer:event.pointerId,x:event.clientX,y:event.clientY,moving:false};
   surface.setPointerCapture(event.pointerId);
@@ -26,9 +30,9 @@ export function bindPropGestures(surface,viewport,actions){
   drag.moving=true;viewport.dataset.propDrag="moving";latest=event;
   if(!frame)frame=requestAnimationFrame(()=>{
    frame=0;if(!drag)return;
-   const row=actions.place(drag,latest);
-   viewport.dataset.propDrag=row?"moving":"invalid";
-   actions.preview(row?{prop:drag.prop,row}:null);
+   const rows=actions.place(drag,latest);
+   viewport.dataset.propDrag=rows?"moving":"invalid";
+   actions.preview(rows?{prop:drag.prop,rows}:null);
   });
  }
  function up(event){
