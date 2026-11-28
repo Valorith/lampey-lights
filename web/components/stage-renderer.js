@@ -5,6 +5,7 @@ import {cabinets} from "../lib/controller-layout.js";
 import {connected,controllerCords,sceneCables,deviceBasis,wallMount} from "../lib/stage.js";
 import * as T from "three";
 import {beamDefaults,beamDirection,floodScale,lampOrigin,cablePoints,routedPoints} from "../lib/stage.js";
+import {floodProjector,LIGHT_LAYER} from "./flood-projector.js";
 
 const up=new T.Vector3(0,1,0);
 const vector=p=>new T.Vector3(...p);
@@ -81,8 +82,9 @@ function floodHousing(f,dir){
  const lens=new T.MeshBasicMaterial({color:f.color});box(head,[.24,.16,.012],[0,0,.083],lens);
  return {group,lens};
 }
-// Clip the beam and its footprint against the same property triangles used by the editor.
-function beamGeometry(f,candidates){
+// Clip the beam against the same property triangles used by the editor. The software
+// renderer also gets a coarse footprint; WebGL draws the footprint with the projector.
+function beamGeometry(f,candidates,footprint){
  const origin=vector(lampOrigin(f)),axis=vector(beamDirection(f)),reach=f.reach??beamDefaults.reach;
  const width=Math.tan(T.MathUtils.degToRad((f.spread??beamDefaults.spread)/2));
  const right=new T.Vector3().crossVectors(axis,Math.abs(axis.y)>.98?new T.Vector3(0,0,1):up).normalize(),vertical=right.clone().cross(axis);
@@ -105,7 +107,7 @@ function beamGeometry(f,candidates){
   if(far-near>Math.max(.36,near*width*.85))return;
   tri(a.point,b.point,c.point,a.weight*.9,b.weight*.9,c.weight*.9)
  }
- for(let j=1;j<=levels;j++){const prev=rings[j-1],row=rings[j];
+ if(footprint)for(let j=1;j<=levels;j++){const prev=rings[j-1],row=rings[j];
   for(let i=0;i<segments;i++){const k=(i+1)%segments,a=prev[j===1?0:i],b=prev[j===1?0:k];patch(a,row[i],row[k]);if(j>1)patch(a,row[k],b)}}
  const ring=rings.at(-1);for(let i=0;i<segments;i++){const next=ring[(i+1)%segments];tri(origin,ring[i].point,next.point,.15,.022,.022)}
  const geo=new T.BufferGeometry();geo.setAttribute("position",new T.Float32BufferAttribute(vertices,3));geo.setAttribute("strength",new T.Float32BufferAttribute(weights,1));
@@ -131,6 +133,7 @@ function cableObject(c,design,pathFor){
 function disposeGroup(group){const materials=new Set();group.traverse(o=>{if(o.userData.sharedCabinet)return;o.geometry?.dispose();if(o.material)materials.add(o.material)});materials.forEach(m=>m.dispose());group.clear()}
 export function stageRenderer(scene,pathFor){
  const props=new T.Group(),wires=new T.Group(),garden=new T.Group();scene.add(props,wires,garden);let wireRecords=new Map(),emitters=[],faces=[],cached=new Map(),lastDesign=null,lastModel=null;
+ const projector=floodProjector();
  const plantObjects=new Map();
  const cabinetCache=new Map(),cabinetMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:.75});
  let visibilityKey=null,visibilitySel=null,visibilityWiring=null,pulseKey=null,selected=null,paths=[],pulseCount=0;
@@ -160,25 +163,26 @@ export function stageRenderer(scene,pathFor){
    let group=plantObjects.get(p.id);
    if(group?.userData.kind!==p.kind){
     if(group){garden.remove(group);disposeGroup(group)}
-    group=plantMesh(p,fallback);group.userData.kind=p.kind;plantObjects.set(p.id,group);garden.add(group);
+    group=plantMesh(p,fallback);group.userData.kind=p.kind;group.traverse(o=>{if(o.isMesh)o.layers.enable(LIGHT_LAYER)});plantObjects.set(p.id,group);garden.add(group);
    }
    group.position.fromArray(p.point);group.scale.set(p.width,p.height,p.width);
    group.rotation.y=T.MathUtils.degToRad(p.rotation);group.updateMatrixWorld(true);
   }
   for(const [id,group] of plantObjects)if(!visible.has(id)){garden.remove(group);disposeGroup(group);plantObjects.delete(id)}
   const gardenKey=JSON.stringify(design.plants);const surfaces=[...targets,...garden.children.flatMap(g=>g.children)];
-  const retained=new Map();
+  const retained=new Map(),lit=[];
   for(const f of design.fixtures.filter(f=>f.shape==="flood"&&f.visible&&f.points.length)){
    const {group,lens}=floodHousing(f,vector(beamDirection(f)));props.add(group);
    const key=JSON.stringify([lampOrigin(f),beamDirection(f),f.spread,f.reach,targets.length,gardenKey]);
    let data=cached.get(key);
    if(!data){const origin=vector(lampOrigin(f)),r=f.reach??9;
     const near=surfaces.filter(m=>{if(!m.geometry.boundingSphere)m.geometry.computeBoundingSphere();const s=m.geometry.boundingSphere.clone().applyMatrix4(m.matrixWorld);return s.center.distanceTo(origin)<=r+s.radius});
-    const geo=beamGeometry(f,near);data={position:geo.attributes.position,strength:geo.attributes.strength};geo.dispose()}
+    const geo=beamGeometry(f,near,fallback);data={position:geo.attributes.position,strength:geo.attributes.strength};geo.dispose()}
    retained.set(key,data);const geo=new T.BufferGeometry();geo.setAttribute("position",data.position);geo.setAttribute("strength",data.strength);
    const mat=beamMaterial(f.color);const beam=mesh(props,geo,mat,[0,0,0]);beam.renderOrder=2;beam.userData.flood=f.id;
-   emitters.push({f,mat,lens})
-  }cached=retained;
+   const light=f.id+key;if(!fallback)lit.push({key:light,origin:vector(lampOrigin(f)),axis:vector(beamDirection(f)).normalize(),spread:f.spread??beamDefaults.spread,reach:f.reach??beamDefaults.reach});
+   emitters.push({f,mat,lens,light})
+  }cached=retained;projector.sync(lit);
   for(const d of design.devices)if(d.point)props.add(equipment(d,cabinetCache,cabinetMaterial));
   pulseKey=null;visibilityKey=null;wireRecords=new Map(sceneCables(design).map(c=>[c.id,c]));
   for(const c of wireRecords.values())if(c.visible){const o=cableObject(c,design,pathFor);if(o)wires.add(o)}
@@ -193,12 +197,13 @@ export function stageRenderer(scene,pathFor){
  function update(state,color,time){energy(state,time);wires.visible=state.wiring||!!state.design?.devices.some(d=>d.id===state.sel);
   if(visibilityKey!==state.design||visibilitySel!==state.sel||visibilityWiring!==state.wiring){visibilityKey=state.design;visibilitySel=state.sel;visibilityWiring=state.wiring;
   for(const g of wires.children){const c=wireRecords.get(g.userData.entity);if(!c)continue;const hasBox=state.design.devices.some(d=>d.id===state.sel);const focus=c.id===state.sel||connected(c,state.sel,state.design);g.visible=(state.wiring&&!c.inferred)||focus;const mat=g.children[0].material;mat.color.set(c.color).multiplyScalar(hasBox&&!focus?.26:focus?1.55:1)}}
-  for(const {f,mat,lens} of emitters){const c=color(f,0,time,state.play);mat.uniforms.tint.value.copy(c);mat.uniforms.gain.value=state.night?1:.62;lens.color.copy(c)}
+  for(const {f,mat,lens,light} of emitters){const c=color(f,0,time,state.play);mat.uniforms.tint.value.copy(c);mat.uniforms.gain.value=state.night?1:.62;lens.color.copy(c);
+   const u=projector.entry(light)?.material.uniforms;if(u){u.tint.value.copy(c);u.gain.value=mat.uniforms.gain.value}}
  }
  function software(out,screen,night){if(pulseMesh.visible){const attr=pulseGeo.attributes.position;for(let i=0;i<attr.count;i++){const p=screen(new T.Vector3().fromBufferAttribute(attr,i));out.push({...p,z:p.z-.00001,c:"#fff1ac"})}}for(const f of faces){if(f.wiring&&(!wires.visible||!f.object.parent.visible))continue;const a=screen(f.a),b=screen(f.b),c=screen(f.c);if(a.z< -1||a.z>1)continue;
   const mat=f.material,fill=(night?f.night:f.day)??(mat.color||mat.uniforms.tint.value).getHexString();out.push({a,b,c,z:(a.z+b.z+c.z)/3,fill:"#"+fill,alpha:f.glow===null?1:f.glow*mat.uniforms.gain.value})}}
  function pick(ray){const hits=ray.intersectObjects(wires.visible?[props,wires,garden]:[props,garden],true);
   for(const hit of hits){if(!hit.object.visible||!hit.object.parent.visible)continue;for(let o=hit.object;o;o=o.parent){if(o.userData.entity)return {id:o.userData.entity,distance:hit.distance}}}return null}
- return {sync,update,software,pick,animated:()=>pulseMesh.visible,surfaces:()=>garden.children.flatMap(g=>g.children),dispose(){disposeGroup(props);disposeGroup(wires);disposeGroup(garden);for(const geo of cabinetCache.values())geo.dispose();cabinetCache.clear();cabinetMaterial.dispose();pulseGeo.dispose();pulseMat.dispose();scene.remove(pulseMesh);cached.clear();scene.remove(props,wires,garden)}};
+ return {sync,update,software,pick,shadows:projector.shadows,overlay:projector.overlay,animated:()=>pulseMesh.visible,surfaces:()=>garden.children.flatMap(g=>g.children),dispose(){disposeGroup(props);disposeGroup(wires);disposeGroup(garden);for(const geo of cabinetCache.values())geo.dispose();cabinetCache.clear();cabinetMaterial.dispose();projector.dispose();pulseGeo.dispose();pulseMat.dispose();scene.remove(pulseMesh);cached.clear();scene.remove(props,wires,garden)}};
 }
 

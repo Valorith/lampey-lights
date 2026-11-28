@@ -10,6 +10,7 @@ import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import {wirePoints,mounts,mountNames} from "../lib/show";
 import {stageRenderer} from "./stage-renderer";
+import {LIGHT_LAYER} from "./flood-projector.js";
 import {plantMesh} from "./plant-mesh.js";
 import {routeLength,beamDirection,floodScale,lampOrigin,cablePoints,routedPoints} from "../lib/stage";
 import {shapePath,measure,along,nearestOnPath,simplify,describe,lightCount,wallYaw,dragTools,toolDefaults} from "../lib/draw-tools.js";
@@ -121,7 +122,7 @@ export function createScene(host,events){
  new GLTFLoader().load("/property.glb?rev=rear-room-slider-4",asset=>{
   if(disposed){asset.scene.traverse(o=>{o.geometry?.dispose();o.material?.dispose()});return}
   model=asset.scene;base.add(model);model.updateMatrixWorld(true);
-  model.traverse(obj=>{if(!obj.isMesh)return;for(let a=obj;a;a=a.parent){if(/Evergreens.and.foundation.shrubs/i.test(a.name)){obj.visible=false;return}}pickMeshes.push(obj);
+  model.traverse(obj=>{if(!obj.isMesh)return;for(let a=obj;a;a=a.parent){if(/Evergreens.and.foundation.shrubs/i.test(a.name)){obj.visible=false;return}}pickMeshes.push(obj);obj.layers.enable(LIGHT_LAYER);
    if(!ctx)return;const geo=obj.geometry,attr=geo.attributes.position,ix=geo.index,materials=Array.isArray(obj.material)?obj.material:[obj.material];
    const vs=Array.from({length:attr.count},(_,i)=>new T.Vector3().fromBufferAttribute(attr,i).applyMatrix4(obj.matrixWorld));
    for(const g of geo.groups.length?geo.groups:[{start:0,count:ix?.count||attr.count,materialIndex:0}]){
@@ -152,7 +153,7 @@ export function createScene(host,events){
   const off=(f)=>state.design?.devices.find(d=>d.id===f.device)?.offPorts?.includes(f.port);stage.update(state,(f,...args)=>off(f)?new T.Color(0):frameColor(f,...args),time);
   for(const r of runs){r.pts.forEach((p,i)=>{const col=r.off?new T.Color(0):frameColor(r.f,i,time,state.play);col.toArray(colors,k);k+=3;projection.push({...screen(p),id:r.f.id,c:"#"+col.getHexString()})})}
   if(bulbs)bulbs.geometry.attributes.color.needsUpdate=true;
-  if(gl)gl.render(scene,cam);else if(ctx){
+  if(gl){stage.shadows(gl,scene);gl.render(scene,cam);stage.overlay(gl,scene,cam)}else if(ctx){
    ctx.clearRect(0,0,w,h);const faces=[];
    for(const tri of triangles){if(tri.n.dot(cam.position.clone().sub(tri.a))<=0)continue;const a=screen(tri.a),b=screen(tri.b),c=screen(tri.c);
     if(a.z>1||a.z< -1||Math.abs((a.x-b.x)*(c.y-b.y)-(c.x-b.x)*(a.y-b.y))<.52)continue;
