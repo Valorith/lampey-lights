@@ -42,7 +42,7 @@ export function createScene(host,events){
  const scene=new T.Scene(),cam=new T.PerspectiveCamera(42,1,.08,200);
  const base=new T.Group();scene.add(base);
  const canvas=document.createElement("canvas");canvas.className="sceneCanvas";canvas.tabIndex=0;canvas.setAttribute("aria-label","Interactive 3D property");host.append(canvas);
- let gl;try{gl=new T.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:"low-power"});gl.setPixelRatio(Math.min(devicePixelRatio,1.65));gl.setClearColor(0,0)}catch{}
+ let gl;try{gl=new T.WebGLRenderer({canvas,antialias:true,alpha:true,stencil:true,powerPreference:"low-power"});gl.setPixelRatio(Math.min(devicePixelRatio,1.65));gl.setClearColor(0,0)}catch{}
  const cpuCanvas=gl?null:document.createElement("canvas");if(cpuCanvas){cpuCanvas.className="sceneCanvas";host.append(cpuCanvas);canvas.hidden=true}
  const surface=cpuCanvas||canvas,ctx=cpuCanvas?.getContext("2d");
  const overlay=document.createElement("canvas");overlay.className="overlayCanvas";host.append(overlay);const ink=overlay.getContext("2d");

@@ -14,6 +14,9 @@ function projectorMaterial(){
    cosOuter:{value:.9},lightMatrix:{value:new T.Matrix4()},depthMap:{value:null},near:{value:.1},far:{value:9},texel:{value:1/SIZE}},
   side:T.DoubleSide,transparent:true,depthWrite:false,depthFunc:T.LessEqualDepth,blending:T.AdditiveBlending,
   polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-4,
+  // Coplanar or overlapping surfaces would each add the tint and saturate to white;
+  // the stencil lets a flood light each pixel once.
+  stencilWrite:true,stencilRef:1,stencilFunc:T.NotEqualStencilFunc,stencilFail:T.KeepStencilOp,stencilZFail:T.KeepStencilOp,stencilZPass:T.ReplaceStencilOp,
   vertexShader:`varying vec3 wpos;varying vec3 wnormal;
 void main(){vec4 w=modelMatrix*vec4(position,1.);wpos=w.xyz;wnormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*viewMatrix*w;}`,
   fragmentShader:`#include <packing>
@@ -75,7 +78,7 @@ export function floodProjector(){
   if(!active.length)return;
   viewCam.copy(cam);viewCam.layers.set(LIGHT_LAYER);
   const auto=gl.autoClear,override=scene.overrideMaterial,bg=scene.background;gl.autoClear=false;scene.background=null;
-  for(const e of active){const u=e.material.uniforms;if(u.gain.value<=0||u.tint.value.getHex()===0)continue;scene.overrideMaterial=e.material;gl.render(scene,viewCam)}
+  for(const e of active){const u=e.material.uniforms;if(u.gain.value<=0||u.tint.value.getHex()===0)continue;gl.clearStencil();scene.overrideMaterial=e.material;gl.render(scene,viewCam)}
   scene.overrideMaterial=override;scene.background=bg;gl.autoClear=auto;
  }
  function dispose(){for(const e of entries.values()){e.target.dispose();e.material.dispose()}entries.clear();active=[];depth.dispose()}
