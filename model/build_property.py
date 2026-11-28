@@ -679,15 +679,30 @@ def build_rear():
     mount('pool.fence.chimney-side',[(xmin,ymin,rim+1.035),(xmin,ymax,rim+1.035)])
 
 
+WALL_START, WALL_PITCH, WALL_BLOCKS = -6.6, .55, 12
+
+
+def clamp(t): return min(1.,max(0.,t))
+
+
+def drive_grade(y):
+    return -1.60+(GARAGE_GRADE+1.60)*clamp((y+13)/13)+.44*clamp((y-8.7)/3.5)
+
+
+def wall_height(t):
+    return .22+.82*t
+
+
 def grade(x,y):
-    def clamp(t): return min(1.,max(0.,t))
     front=-1.28-.31*clamp((-y-4)/10)
     rear=-2.57
     main=front+(rear-front)*clamp((y+.8)/10.8)
-    drive=-1.60+(GARAGE_GRADE+1.60)*clamp((y+13)/13)
-    drive+=.44*clamp((y-8.7)/3.5)
-    across=clamp((x-3.0)/2.55)
-    return main+(drive-main)*across
+    side=drive_grade(y)
+    # Behind the retaining wall the lawn meets the wall top, tucked under the cap.
+    if x<5.56 and -7.2<=y<-.01:
+        t=min(1.1,max(0.,(y-WALL_START)/(WALL_PITCH*(WALL_BLOCKS-1))))
+        side+=(wall_height(t)+.04)*clamp((y+7.2)/.6)
+    return main+(side-main)*clamp((x-3.0)/2.55)
 
 
 def surf(part,xs,ys,mat,offset):
@@ -715,8 +730,8 @@ def shrub(part,x,y,r,h,mat,seed):
 
 
 def build_ground():
-    ys=[-13,-9,-5,-4,-2,0,4,8.7,10,12.2,16.5,20.4]
-    xs=[-12,-7,-3,0,3,4.4,5.55,7.4,10.15,13.2]
+    ys=[-13,-9,-7.2,-6.6,-5,-4,-2,-.02,0,4,8.7,10,12.2,16.5,20.4]
+    xs=[-12,-7,-3,0,3,4.4,5.55,5.95,7.4,10.15,13.2]
     turf=Part("Graded lawn",grounds)
     surf(turf,xs,ys,lawn,-.035)
     for a,b in [((xs[0],ys[0]),(xs[-1],ys[0])),((xs[-1],ys[0]),(xs[-1],ys[-1])),((xs[-1],ys[-1]),(xs[0],ys[-1])),((xs[0],ys[-1]),(xs[0],ys[0]))]:
@@ -734,11 +749,11 @@ def build_ground():
     surf(walk,[-.61,.98],[-13,-9,-5,PORCH_FRONT-1.62],path_mat,.005)
     walk.finish()
     retaining=Part("Driveway retaining wall",grounds)
-    for i in range(12):
-        y=-6.6+i*.54; bottom=grade(5.79,y)
-        height=.22+.82*(i/11)
-        retaining.box(5.57,5.95,y,y+.527,bottom-.05,bottom+height,stone)
-        retaining.box(5.54,5.98,y-.006,y+.532,bottom+height,bottom+height+.065,base)
+    for i in range(WALL_BLOCKS):
+        y=WALL_START+i*WALL_PITCH; bottom=grade(5.79,y)
+        height=wall_height(i/(WALL_BLOCKS-1))
+        retaining.box(5.57,5.95,y,y+WALL_PITCH-.013,bottom-.05,bottom+height,stone)
+        retaining.box(5.54,5.98,y-.006,y+WALL_PITCH-.008,bottom+height,bottom+height+.065,base)
     retaining.finish()
     plants=Part("Evergreens and foundation shrubs",grounds)
     for i,(x,y,r,h) in enumerate([(-4.54,-2.96,.76,1.22),(-2.67,-2.94,.65,1.16),(2.75,-2.96,.68,1.06),(4.44,-2.98,.83,1.25),(-6.67,1.65,.75,2.25),(-6.77,5.45,.81,2.44),(11.15,-3.10,.98,3.75),(11.60,-.90,1.04,4.05),(11.39,1.32,1.0,3.95)]):

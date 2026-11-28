@@ -122,7 +122,7 @@ export function createScene(host,events){
  function resize(){if(!host.clientWidth||!host.clientHeight)return;w=Math.max(1,host.clientWidth);h=Math.max(1,host.clientHeight);cam.aspect=w/h;cam.updateProjectionMatrix();gl?.setSize(w,h,false);
   for(const c of [overlay,cpuCanvas].filter(Boolean)){c.width=w;c.height=h}invalidate()}
  const observer=new ResizeObserver(resize);observer.observe(host);resize();preset("Street",true);controls.addEventListener("change",invalidate);controls.addEventListener("start",()=>{tween=null});
- new GLTFLoader().load("/property.glb?rev=rear-room-slider-4",asset=>{
+ new GLTFLoader().load("/property.glb?rev=retaining-wall-grade-1",asset=>{
   if(disposed){asset.scene.traverse(o=>{o.geometry?.dispose();o.material?.dispose()});return}
   model=asset.scene;base.add(model);model.updateMatrixWorld(true);
   model.traverse(obj=>{if(!obj.isMesh)return;for(let a=obj;a;a=a.parent){if(/Evergreens.and.foundation.shrubs/i.test(a.name)){obj.visible=false;return}}pickMeshes.push(obj);obj.layers.enable(LIGHT_LAYER);
