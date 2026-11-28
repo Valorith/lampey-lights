@@ -55,7 +55,7 @@ export const defaultNet=()=>({id:id(),name:"Regular",protocol:"elor",source:"USB
 export const defaultDevice=(net)=>({id:id(),name:"Pixel controller",model:"pixie16",net,parent:"",unit:"01",ip:"",rf:16,branch:1,universe:1,pixelLimit:170,notes:"",point:null});
 export const defaultFixture=()=>({id:id(),name:"Porch fascia",zone:"Front porch",type:"pixel",shape:"run",mount:"porch.fascia",points:mounts["porch.fascia"],color:palette[0],color2:palette[1],effect:"steady",count:75,size:1.8,brightness:85,device:"",port:1,offset:1,universe:1,slot:1,visible:true,order:"RGB",notes:""});
 export function sample(){
- const n={...defaultNet(),id:"show-bus",name:"Regular"}, d={...defaultDevice(n.id),id:"porch-box",name:"Porch Pixie16",point:[4.3,-.9,2.6]};
+ const n={...defaultNet(),id:"show-bus",name:"Regular"}, d={...defaultDevice(n.id),id:"porch-box",name:"Porch Pixie16",point:[4.3,-.51,2.6]};
  const list=["front.upper-eave","dormer.left","dormer.right","porch.fascia","porch.rail.left","porch.rail.right"].map((m,i)=>({...defaultFixture(),id:"strand-"+i,name:mountNames[m],mount:m,points:mounts[m],zone:i<3?"Roofline":"Front porch",color:palette[[0,1,1,0,2,2][i]],count:[90,32,32,80,32,32][i],port:i+1,device:d.id}));
  for(const [i,x] of [-2.15,2.6].entries())list.push({...defaultFixture(),id:"tree-"+i,name:i?"East spiral tree":"West spiral tree",zone:"Front yard",shape:"tree",effect:i?"twinkle":"fade",size:2.0,count:82,points:[[x,-1.21,5.2]],mount:"",color:palette[i?1:2],port:7+i,device:d.id});
  return {version:1,name:"Winter showcase · sample",fixtures:list,devices:[d],networks:[n]};

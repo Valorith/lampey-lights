@@ -17,7 +17,9 @@ export function propertyPlants(){
  const positions=[[-4.54,-2.96,.76,1.22],[-2.67,-2.94,.65,1.16],[2.75,-2.96,.68,1.06],[4.44,-2.98,.83,1.25],[-6.67,1.65,.75,2.25],[-6.77,5.45,.81,2.44],[11.15,-3.10,.98,3.75],[11.60,-.90,1.04,4.05],[11.39,1.32,1,3.95]];
  const planted=positions.map(([x,y,r,h],i)=>{
   const front=-1.28-.31*clamp((-y-4)/10),main=front+(-2.57-front)*clamp((y+.8)/10.8);
-  const drive=-1.6-1.44*clamp((y+13)/13)+.44*clamp((y-8.7)/3.5);
+  // Mirrors grade() in model/build_property.py, including the lawn raised behind the retaining wall.
+  let drive=-1.6-1.44*clamp((y+13)/13)+.44*clamp((y-8.7)/3.5);
+  if(x<5.56&&y>=-7.2&&y<-.01)drive+=(.22+.82*Math.min(1.1,Math.max(0,(y+6.6)/6.05))+.04)*clamp((y+7.2)/.6);
   return {id:"property-plant-"+i,kind:i<4?"shrub":"evergreen",name:i<4?"Porch bush "+(i+1):i<6?"Chimney-side evergreen "+(i-3):"Driveway evergreen "+(i-5),point:round([x*scale,(main+(drive-main)*clamp((x-3)/2.55)-.035)*scale,-y*scale]),height:h*scale,width:2*r*scale,rotation:i*14,visible:true}
  });
  return [...planted,...[[-8.65,-1.46,9.9,7.6,5.1],[-6.45,-1.47,11.22,6.9,4.6]].map(([x,y,z,height,width],i)=>({id:"street-left-"+(i+1),name:"Left street tree "+(i+1),kind:"deciduous",point:[x,y,z],height,width,rotation:i*33,visible:true}))];
