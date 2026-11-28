@@ -1,6 +1,8 @@
 import {hardware} from "../lib/show";
 import {plantMesh} from "./plant-mesh.js";
-import {connected,controllerCords,sceneCables,deviceBasis} from "../lib/stage.js";
+import {cabinetGeometry} from "./controller-mesh.js";
+import {cabinets} from "../lib/controller-layout.js";
+import {connected,controllerCords,sceneCables,deviceBasis,wallMount} from "../lib/stage.js";
 import * as T from "three";
 import {beamDefaults,beamDirection,floodScale,lampOrigin,cablePoints,routedPoints} from "../lib/stage.js";
 
@@ -9,28 +11,63 @@ const vector=p=>new T.Vector3(...p);
 function mesh(group,geometry,material,pos){const m=new T.Mesh(geometry,material);m.position.set(...pos);group.add(m);return m}
 const finish=(color,metalness=.1)=>new T.MeshStandardMaterial({color,metalness,roughness:.55});
 function box(group,dimensions,position,mat){return mesh(group,new T.BoxGeometry(...dimensions),mat,position)}
-function equipment(d){
+function equipment(d,cabinetCache,cabinetMaterial){
  const group=new T.Group(),basis=deviceBasis(d);group.position.copy(vector(basis.origin));group.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(vector(basis.x),vector(basis.y),vector(basis.z)));
+ group.scale.setScalar(d.scale??1);group.userData.entity=d.id;
+ if(cabinets[d.model]){
+  const wall=wallMount(d),key=d.model+(wall?"-wall":"-ground");
+  if(!cabinetCache.has(key))cabinetCache.set(key,cabinetGeometry(cabinets[d.model],wall));
+  const body=new T.Mesh(cabinetCache.get(key),cabinetMaterial);
+  body.userData.sharedCabinet=true;
+  group.add(body);
+  return group;
+ }
  const shell=finish("#34454a"),edge=finish("#77898c"),dark=finish("#142326"),signal=new T.MeshBasicMaterial({color:"#84e4bd"}),power=finish("#e6af65");
  if(d.model==="computer"){
   box(group,[.78,.04,.52],[0,.03,0],edge);box(group,[.6,.015,.23],[0,.058,.01],dark);
   const lid=new T.Group();lid.position.set(0,.035,-.23);lid.rotation.x=-.13;group.add(lid);
   box(lid,[.78,.49,.042],[0,.24,0],shell);box(lid,[.70,.40,.016],[0,.24,.028],new T.MeshBasicMaterial({color:"#3a9293"}));
   for(let i=0;i<3;i++)box(lid,[.38-i*.055,.015,.005],[-.10,.34-i*.055,.042],signal);
- }else if(["switch","bridge","adapter","repeater"].includes(d.model)){
+ }else if(d.model==="bridge"){
+  const black=finish("#29292b");
+  box(group,[.154,.042,.10],[0,.021,0],black);
+  box(group,[.144,.033,.002],[0,.021,.05],dark);
+  box(group,[.016,.014,.003],[-.045,.020,.05],edge);
+  box(group,[.013,.011,.004],[-.045,.020,.052],black);
+  box(group,[.009,.004,.004],[-.01,.014,.051],edge);
+  box(group,[.009,.009,.003],[.045,.018,.051],dark);
+  for(let i=0;i<6;i++)box(group,[.016,.013,.003],[(i-2.5)*.021,.019,-.05],dark);
+ }else if(["tx","rx"].includes(d.model)){
+  const black=finish("#242528");
+  box(group,[.083,.008,.045],[0,.006,0],dark);
+  box(group,[.070,.092,.042],[0,.054,0],black);
+  mesh(group,new T.CylinderGeometry(.004,.006,.14,8),black,[0,.176,0]);
+  mesh(group,new T.CylinderGeometry(.007,.007,.012,8),edge,[0,.104,0]);
+  for(const x of [-.014,.014])box(group,[.016,.013,.004],[x,.022,.022],dark);
+ }else if(d.model==="cf50"){
+  const black=finish("#26282a"),reflector=finish("#c7cdcc",.33);
+  box(group,[.28,.009,.060],[0,.005,0],black);
+  for(const side of [-1,1])box(group,[.006,.139,.021],[side*.136,.074,0],black);
+  box(group,[.276,.218,.104],[0,.145,.006],black);
+  for(let i=0;i<11;i++)box(group,[.008,.165,.020],[(i-5)*.022,.145,-.055],black);
+  box(group,[.249,.19,.008],[0,.145,.061],reflector);
+  box(group,[.175,.122,.004],[0,.145,.066],edge);
+  box(group,[.044,.044,.003],[0,.145,.069],finish("#ede2b5"));
+  for(const x of [-.127,.127])for(const y of [.049,.241])
+   box(group,[.006,.006,.004],[x,y,.059],edge);
+ }else if(["switch","adapter","repeater"].includes(d.model)){
   const w=d.model==="adapter"?.35:.77;box(group,[w,.20,.42],[0,.1,0],shell);
   box(group,[w-.04,.12,.018],[0,.10,.22],edge);
   const count=d.model==="adapter"?1:6;for(let i=0;i<count;i++){const x=(i-(count-1)/2)*.10;box(group,[.075,.066,.018],[x,.09,.238],dark);box(group,[.021,.013,.018],[x,.157,.229],signal)}
  }else{
-  const radio=["tx","rx"].includes(d.model),energy=["outlet","supply"].includes(d.model),w=radio?.27:.50,h=radio?.33:.61;
+  const energy=["outlet","supply"].includes(d.model),w=.50,h=.61;
   box(group,[w,h,.28],[0,h/2,0],shell);box(group,[w-.045,h-.055,.034],[0,h/2,.151],edge);
   box(group,[w-.11,.11,.018],[0,h*.74,.178],dark);box(group,[.055,.018,.008],[-w*.18,h*.74,.190],energy?power:signal);
   const outputs=Math.min(16,hardware[d.model]?.ports||0);
   if(outputs){for(let i=0;i<outputs;i++){const x=(i%4-1.5)*.083,y=.095+Math.floor(i/4)*.043;box(group,[.057,.027,.020],[x,y,.178],dark)}}
-  else for(let i=0;i<(radio?1:2);i++)box(group,[.068,.07,.035],[(i-(radio?0:.5))*.12,.11,.18],dark);
-  if(radio)mesh(group,new T.CylinderGeometry(.012,.019,.30,7),dark,[w*.33,h+.14,0]);
+  else for(let i=0;i<2;i++)box(group,[.068,.07,.035],[(i-.5)*.12,.11,.18],dark);
  }
- group.scale.setScalar(d.scale??1);group.userData.entity=d.id;return group;
+ return group;
 }
 function floodHousing(f,dir){
  const group=new T.Group();group.position.copy(vector(lampOrigin(f)));group.scale.setScalar(floodScale(f));group.userData.entity=f.id;
@@ -91,10 +128,11 @@ function cableObject(c,design,pathFor){
  const geo=new T.BufferGeometry();geo.setAttribute("position",new T.Float32BufferAttribute(positions,3));geo.setIndex(indices);material.side=T.DoubleSide;
  mesh(group,geo,material,[0,0,0]);return group;
 }
-function disposeGroup(group){const materials=new Set();group.traverse(o=>{o.geometry?.dispose();if(o.material)materials.add(o.material)});materials.forEach(m=>m.dispose());group.clear()}
+function disposeGroup(group){const materials=new Set();group.traverse(o=>{if(o.userData.sharedCabinet)return;o.geometry?.dispose();if(o.material)materials.add(o.material)});materials.forEach(m=>m.dispose());group.clear()}
 export function stageRenderer(scene,pathFor){
  const props=new T.Group(),wires=new T.Group(),garden=new T.Group();scene.add(props,wires,garden);let wireRecords=new Map(),emitters=[],faces=[],cached=new Map(),lastDesign=null,lastModel=null;
  const plantObjects=new Map();
+ const cabinetCache=new Map(),cabinetMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:.75});
  let visibilityKey=null,visibilitySel=null,visibilityWiring=null,pulseKey=null,selected=null,paths=[],pulseCount=0;
  const pulseGeo=new T.BufferGeometry(),pulseMat=new T.PointsMaterial({color:"#fff1ac",size:.095,sizeAttenuation:true,transparent:true,opacity:.94,depthWrite:false});
  const pulseMesh=new T.Points(pulseGeo,pulseMat);pulseMesh.frustumCulled=false;scene.add(pulseMesh);
@@ -141,7 +179,7 @@ export function stageRenderer(scene,pathFor){
    const mat=beamMaterial(f.color);const beam=mesh(props,geo,mat,[0,0,0]);beam.renderOrder=2;beam.userData.flood=f.id;
    emitters.push({f,mat,lens})
   }cached=retained;
-  for(const d of design.devices)if(d.point)props.add(equipment(d));
+  for(const d of design.devices)if(d.point)props.add(equipment(d,cabinetCache,cabinetMaterial));
   pulseKey=null;visibilityKey=null;wireRecords=new Map(sceneCables(design).map(c=>[c.id,c]));
   for(const c of wireRecords.values())if(c.visible){const o=cableObject(c,design,pathFor);if(o)wires.add(o)}
   if(fallback){for(const root of [props,wires,garden]){root.updateMatrixWorld(true);root.traverse(o=>{if(!o.isMesh)return;const g=o.geometry,a=g.attributes.position,ix=g.index,glow=g.attributes.strength;
@@ -161,6 +199,6 @@ export function stageRenderer(scene,pathFor){
   const mat=f.material,fill=(night?f.night:f.day)??(mat.color||mat.uniforms.tint.value).getHexString();out.push({a,b,c,z:(a.z+b.z+c.z)/3,fill:"#"+fill,alpha:f.glow===null?1:f.glow*mat.uniforms.gain.value})}}
  function pick(ray){const hits=ray.intersectObjects(wires.visible?[props,wires,garden]:[props,garden],true);
   for(const hit of hits){if(!hit.object.visible||!hit.object.parent.visible)continue;for(let o=hit.object;o;o=o.parent){if(o.userData.entity)return {id:o.userData.entity,distance:hit.distance}}}return null}
- return {sync,update,software,pick,animated:()=>pulseMesh.visible,surfaces:()=>garden.children.flatMap(g=>g.children),dispose(){disposeGroup(props);disposeGroup(wires);disposeGroup(garden);pulseGeo.dispose();pulseMat.dispose();scene.remove(pulseMesh);cached.clear();scene.remove(props,wires,garden)}};
+ return {sync,update,software,pick,animated:()=>pulseMesh.visible,surfaces:()=>garden.children.flatMap(g=>g.children),dispose(){disposeGroup(props);disposeGroup(wires);disposeGroup(garden);for(const geo of cabinetCache.values())geo.dispose();cabinetCache.clear();cabinetMaterial.dispose();pulseGeo.dispose();pulseMat.dispose();scene.remove(pulseMesh);cached.clear();scene.remove(props,wires,garden)}};
 }
 

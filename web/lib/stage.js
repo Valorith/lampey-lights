@@ -1,3 +1,5 @@
+import {cabinets,cabinetInlet,cabinetSocket,standalone} from "./controller-layout.js";
+
 export const cableKinds={
  ethernet:{name:"Ethernet / LAN",color:"#58ccfa"},lor:{name:"LOR RS485",color:"#ac96ff"},
  power:{name:"AC extension",color:"#ffb35f"},dc:{name:"DC power",color:"#f47872"},
@@ -37,22 +39,43 @@ export function aimAt(f,point){const o=lampOrigin(f),[dx,dy,dz]=mountRotation(f.
 }
 export function defaultCable(kind="ethernet"){return {id:crypto.randomUUID(),name:cableKinds[kind].name,kind,color:cableKinds[kind].color,from:"",to:"",points:[],style:"corners",sag:.3,width:.04,visible:true,notes:""}}
 export function endpoints(design){
- return [...design.devices.filter(d=>d.point).map(d=>({id:"d/"+d.id,name:d.name,point:devicePoint(d,0,.15,.16),item:d})),
+ return [...design.devices.filter(d=>d.point).map(d=>({id:"d/"+d.id,name:d.name,point:devicePoint(d,...deviceInlet(d)),item:d})),
  ...design.fixtures.filter(f=>f.points.length).map(f=>({id:"f/"+f.id,name:f.name,point:f.points[0],item:f}))];
 }
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const unit=a=>a.map(v=>v/(Math.hypot(...a)||1));
+export const wallMount=d=>Math.abs(unit(d.normal||[0,1,0])[1])<.55;
+function deviceInlet(d) {
+ if(cabinets[d.model])return cabinetInlet(cabinets[d.model],wallMount(d));
+ return standalone[d.model]?.inlet??[0,.15,.16];
+}
 export function deviceBasis(d){
- const n=unit(d.normal||[0,1,0]),wall=Math.abs(n[1])<.55;
+ const n=unit(d.normal||[0,1,0]),wall=wallMount(d);
  const x=unit(cross(wall?[0,1,0]:n,wall?n:[0,0,1])),y=wall?cross(n,x):n,z=wall?n:cross(x,y);
  const turn=mountRotation(n,d.rotation);
- return {x:turn(x),y:turn(y),z:turn(z),origin:d.point.map((v,i)=>v+(wall?.32:.014)*(d.scale??1)*n[i])};
+ let clearance=.014;
+ if(wall)clearance=cabinets[d.model] ? .006 : standalone[d.model] ? standalone[d.model].depth/2+.006 : .32;
+ return {x:turn(x),y:turn(y),z:turn(z),origin:d.point.map((v,i)=>v+clearance*(d.scale??1)*n[i])};
 }
 export function devicePoint(d,u,v,w){const {origin,x,y,z}=deviceBasis(d);return origin.map((p,i)=>p+(x[i]*u+y[i]*v+z[i]*w)*(d.scale??1))}
-export function outputPoint(d,port=1){return devicePoint(d,((port-1)%4-1.5)*.083,.095+Math.floor(((port-1)%16)/4)*.043,.19)}
+export function outputPoint(d,port=1,fixtureType){
+ const spec=cabinets[d.model];
+ if(spec){
+  const channel=fixtureType==="rgb"&&d.model.startsWith("cmb")?(port-1)*3+1:port;
+  return devicePoint(d,...cabinetSocket(spec,channel,wallMount(d)));
+ }
+ if(standalone[d.model])return devicePoint(d,...deviceInlet(d));
+ return devicePoint(d,((port-1)%4-1.5)*.083,.095+Math.floor(((port-1)%16)/4)*.043,.19);
+}
 export function connected(c,id,design){return [c.from,c.to].some(key=>key==="d/"+id||design.fixtures.some(f=>f.device===id&&key==="f/"+f.id))}
 export function cablePoints(c,design){const ends=endpoints(design);const pts=c.points.map(p=>[...p]);
- if(pts.length){const a=ends.find(e=>e.id===c.from),b=ends.find(e=>e.id===c.to);if(a)pts[0]=a.id.startsWith("d/")&&c.output?outputPoint(a.item,c.output):a.point;if(b)pts[pts.length-1]=b.id.startsWith("d/")&&c.output?outputPoint(b.item,c.output):b.point}return pts
+ if(pts.length){
+  const a=ends.find(e=>e.id===c.from),b=ends.find(e=>e.id===c.to);
+  const socket=(end,other)=>end.id.startsWith("d/")&&c.output?outputPoint(end.item,c.output,other?.item.type):end.point;
+  if(a)pts[0]=socket(a,b);
+  if(b)pts[pts.length-1]=socket(b,a);
+ }
+ return pts;
 }
 const mix=(a,b,t)=>a.map((n,i)=>n+(b[i]-n)*t);
 export function routedPoints(points,style,sag=.3){
@@ -77,7 +100,7 @@ export function sceneCables(design){
   const kind=/^ac(8|16)$/.test(d.model)&&["ac","relay"].includes(f.type)?"power":/^cmb/.test(d.model)&&["dc","rgb"].includes(f.type)?"dc":/^(pixie|pixcon|aurora|edge|generic)/.test(d.model)&&["pixel","rgbw"].includes(f.type)?"pixel":null;
   if(!kind)continue;const from="d/"+d.id,to="f/"+f.id;
   if(saved.some(c=>[c.from,c.to].includes(from)&&[c.from,c.to].includes(to)&&["power","dc","pixel"].includes(c.kind)))continue;
-  const a=outputPoint(d,f.port),b=f.points[0],bend=[b[0],a[1],a[2]],turn=[b[0],a[1],b[2]];
+  const a=outputPoint(d,f.port,f.type),b=f.points[0],bend=[b[0],a[1],a[2]],turn=[b[0],a[1],b[2]];
   rows.push({id:"cord-"+f.id,name:f.name+" cord",kind,color:cableKinds[kind].color,from,to,output:f.port,points:[a,bend,turn,b],style:"smooth",sag:0,width:.042,visible:true,notes:"",inferred:true});
  }return rows;
 }

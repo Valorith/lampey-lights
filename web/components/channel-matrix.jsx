@@ -631,7 +631,7 @@ export function ChannelMatrix({design,issues,change,editBox,editFixture,addBox,n
      {fill.count>0&&<button type="button" className="mxFill" data-tip="Name unlabeled outputs after their fixtures" data-tip-pos="down" onClick={()=>{change(fill.show);notify("Labeled "+fill.count+(fill.count===1?" output":" outputs"),false,true)}}><I n="pin" size={15}/>Fill labels</button>}
      <button type="button" className={"tool mxBinToggle"+(bin?" on":"")} aria-pressed={bin} aria-label="Fixture list" data-tip={bin?"Hide fixtures":"Show fixtures"} data-tip-pos="down" onClick={()=>setBin(b=>!b)}><I n="sidebar" size={16}/></button>
      <button type="button" className="mxExport" disabled={!groups.length} data-tip="Printable wiring sheets" data-tip-pos="down" onClick={exportSheet}><I n="printer" size={15}/>Export</button>
-     <button type="button" className="mxAdd" onClick={addBox}><I n="plus" size={15}/>Add box</button>
+     <button type="button" className="mxAdd" data-tip="Configure a new controller" data-tip-pos="down-end" onClick={addBox}><I n="plus" size={15}/>Add box</button>
     </div>
    </header>
 

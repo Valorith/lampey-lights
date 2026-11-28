@@ -1,4 +1,5 @@
 import {Vector3} from "three";
+import {cabinets} from "./controller-layout.js";
 import {fitCord} from "./cord-route.js";
 import {guideNormal} from "./window-mounts.js";
 import {wirePoints} from "./show.js";
@@ -18,6 +19,12 @@ export function createRouteGeometry(fitted) {
   if (poses.has(design)) return poses.get(design);
   const devices=design.devices.map(d=>{if(!d.point)return d;const normal=d.normal||fitted.support(d.point);if(!normal)return d;
    const scale=d.scale??1,wall=Math.abs(normal[1])<.55;
+   const spec=cabinets[d.model];
+   if(spec){
+    const span=wall?(spec.height+spec.drop)/2:spec.depth*.62;
+    const center=wall?(spec.style==="mini"?1:-1)*spec.drop/2:-spec.depth/2;
+    return {...d,normal,point:fitted.footprint(d.point,normal,spec.width*.90*scale,span*scale,center*scale,d.rotation)};
+   }
    return {...d,normal,point:fitted.footprint(d.point,normal,.41*scale,(wall?.38:.3)*scale,wall?.29*scale:0,d.rotation)}});
   const fixtures=design.fixtures.map(f=>{if(f.shape==="run"||!f.points.length||f.plant)return f;
    const normal=f.normal||fitted.support(f.points[0]);if(!normal)return f;const points=f.shape==="flood"?[fitted.footprint(f.points[0],normal,.22*floodScale(f),.22*floodScale(f),0,f.rotation)]:f.points;
